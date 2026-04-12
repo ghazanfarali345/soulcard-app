@@ -51,10 +51,36 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-    },
+  // 1. Swagger JSON
+  app.getHttpAdapter().get('/api-json', (req, res) => {
+    res.json(document);
+  });
+
+  // 2. Swagger UI (CDN)
+  app.getHttpAdapter().get('/api', (req, res) => {
+    res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Soulcard Swagger</title>
+        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" />
+      </head>
+      <body>
+        <div id="swagger-ui"></div>
+
+        <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+        <script>
+          window.onload = () => {
+            SwaggerUIBundle({
+              url: '/api-json',
+              dom_id: '#swagger-ui',
+              persistAuthorization: true
+            });
+          };
+        </script>
+      </body>
+    </html>
+  `);
   });
 
   const port = process.env.PORT || 3000;
