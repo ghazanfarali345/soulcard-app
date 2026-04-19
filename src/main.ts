@@ -46,7 +46,12 @@ async function bootstrap() {
     .addTag('Users', 'User management endpoints')
     .addTag('Game Sessions', 'Game session management endpoints')
     .addBearerAuth(
-      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Enter your JWT token' },
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Enter your JWT token',
+      },
       'access-token',
     )
     .build();
