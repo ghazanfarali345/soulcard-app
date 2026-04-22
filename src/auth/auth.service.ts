@@ -355,7 +355,10 @@ export class AuthService {
     }
 
     // Verify password
-    const isPasswordValid = await this.comparePasswords(password, user.password);
+    const isPasswordValid = await this.comparePasswords(
+      password,
+      user.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException(
         'Password is incorrect. Account deletion cancelled.',
