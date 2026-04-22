@@ -25,6 +25,9 @@ export class User {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ type: String, default: null, sparse: true })
+  fullName?: string | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

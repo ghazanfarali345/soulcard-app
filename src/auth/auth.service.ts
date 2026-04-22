@@ -3,11 +3,15 @@ import {
   BadRequestException,
   ConflictException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { LoginDto, SignupDto, ForgotPasswordDto } from './dto';
 import { RefreshTokenDto, JwtPayload } from './dto/auth-response.dto';
+import { EditProfileDto } from './dto/edit-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
@@ -252,6 +256,119 @@ export class AuthService {
       message: 'Password reset link has been sent to your email',
       // Temporary - for testing only
       resetToken,
+    };
+  }
+
+  /**
+   * Edit User Profile
+   * Updates username, email, and/or fullName for authenticated user
+   */
+  async editProfile(userId: string, editProfileDto: EditProfileDto) {
+    try {
+      const updatedUser = await this.usersService.updateProfile(
+        userId,
+        editProfileDto,
+      );
+
+      return {
+        success: true,
+        message: 'Profile updated successfully',
+        data: {
+          user: {
+            id: updatedUser._id,
+            username: updatedUser.username,
+            email: updatedUser.email,
+            fullName: updatedUser.fullName,
+          },
+        },
+      };
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      console.error('Edit profile error:', error);
+      throw new BadRequestException('Failed to update profile');
+    }
+  }
+
+  /**
+   * Change User Password
+   * Validates current password and updates to new password
+   */
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+    const { currentPassword, newPassword, confirmNewPassword } =
+      changePasswordDto;
+
+    // Validate new password confirmation
+    if (newPassword !== confirmNewPassword) {
+      throw new BadRequestException('New passwords do not match');
+    }
+
+    // Validate that new password is different from current
+    if (currentPassword === newPassword) {
+      throw new BadRequestException(
+        'New password must be different from current password',
+      );
+    }
+
+    // Get user
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Verify current password
+    const isPasswordValid = await this.comparePasswords(
+      currentPassword,
+      user.password,
+    );
+    if (!isPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    // Hash new password
+    const hashedPassword = await this.hashPassword(newPassword);
+
+    // Update password
+    await this.usersService.updatePassword(userId, hashedPassword);
+
+    return {
+      success: true,
+      message: 'Password changed successfully',
+    };
+  }
+
+  /**
+   * Delete Account (Soft Delete)
+   * Deactivates user account after password verification
+   */
+  async deleteAccount(userId: string, deleteAccountDto: DeleteAccountDto) {
+    const { password } = deleteAccountDto;
+
+    // Get user
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Verify password
+    const isPasswordValid = await this.comparePasswords(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException(
+        'Password is incorrect. Account deletion cancelled.',
+      );
+    }
+
+    // Deactivate user (soft delete)
+    await this.usersService.deactivateUser(userId);
+
+    return {
+      success: true,
+      message:
+        'Your account has been successfully deleted. You can contact support to restore it.',
     };
   }
 }

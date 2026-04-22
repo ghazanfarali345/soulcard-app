@@ -6,6 +6,8 @@ import {
   UseGuards,
   Get,
   Request,
+  Patch,
+  Delete,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,7 +17,14 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto, SignupDto, ForgotPasswordDto } from './dto';
+import {
+  LoginDto,
+  SignupDto,
+  ForgotPasswordDto,
+  EditProfileDto,
+  ChangePasswordDto,
+  DeleteAccountDto,
+} from './dto';
 import { RefreshTokenDto } from './dto/auth-response.dto';
 import { JwtGuard } from './guards/jwt.guard';
 
@@ -212,5 +221,141 @@ export class AuthController {
       success: true,
       data: req.user,
     };
+  }
+
+  /**
+   * PATCH /auth/profile
+   * Edit user profile (protected route)
+   */
+  @ApiOperation({
+    summary: 'Edit user profile',
+    description:
+      'Update username and/or email. Requires valid JWT token. Username and email must be unique.',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiBody({ type: EditProfileDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile updated successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'Profile updated successfully',
+        data: {
+          user: {
+            id: '507f1f77bcf86cd799439011',
+            username: 'johndoe',
+            email: 'user@example.com',
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Username or email already taken',
+    schema: {
+      example: {
+        success: false,
+        message: 'Username already taken',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing token',
+  })
+  @UseGuards(JwtGuard)
+  @Patch('profile')
+  async editProfile(
+    @Request() req,
+    @Body(ValidationPipe) editProfileDto: EditProfileDto,
+  ) {
+    return this.authService.editProfile(req.user.userId, editProfileDto);
+  }
+
+  /**
+   * POST /auth/change-password
+   * Change user password (protected route)
+   */
+  @ApiOperation({
+    summary: 'Change user password',
+    description:
+      'Update user password with verification of current password. Requires valid JWT token.',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'Password changed successfully',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid current password or validation error',
+    schema: {
+      example: {
+        success: false,
+        message: 'Current password is incorrect',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing token',
+  })
+  @UseGuards(JwtGuard)
+  @Post('change-password')
+  async changePassword(
+    @Request() req,
+    @Body(ValidationPipe) changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(req.user.userId, changePasswordDto);
+  }
+
+  /**
+   * DELETE /auth/account
+   * Delete user account - soft delete (protected route)
+   */
+  @ApiOperation({
+    summary: 'Delete user account (soft delete)',
+    description:
+      'Deactivate user account with password verification. Account data is retained but marked as inactive. Requires valid JWT token.',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiBody({ type: DeleteAccountDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Account deleted successfully',
+    schema: {
+      example: {
+        success: true,
+        message:
+          'Your account has been successfully deleted. You can contact support to restore it.',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid password or missing token',
+    schema: {
+      example: {
+        success: false,
+        message: 'Password is incorrect. Account deletion cancelled.',
+      },
+    },
+  })
+  @UseGuards(JwtGuard)
+  @Delete('account')
+  async deleteAccount(
+    @Request() req,
+    @Body(ValidationPipe) deleteAccountDto: DeleteAccountDto,
+  ) {
+    return this.authService.deleteAccount(req.user.userId, deleteAccountDto);
   }
 }

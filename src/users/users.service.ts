@@ -175,4 +175,51 @@ export class UsersService {
     user.isActive = true;
     return user.save();
   }
+
+  /**
+   * Update user profile (username, email, and/or fullName)
+   */
+  async updateProfile(
+    userId: string,
+    updateData: { username?: string; email?: string; fullName?: string },
+  ): Promise<UserDocument> {
+    const user = await this.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if new username is already taken
+    if (updateData.username && updateData.username !== user.username) {
+      const existingUsername = await this.userModel.findOne({
+        username: updateData.username,
+      });
+
+      if (existingUsername) {
+        throw new ConflictException('Username already taken');
+      }
+
+      user.username = updateData.username;
+    }
+
+    // Check if new email is already taken
+    if (updateData.email && updateData.email !== user.email) {
+      const existingEmail = await this.userModel.findOne({
+        email: updateData.email,
+      });
+
+      if (existingEmail) {
+        throw new ConflictException('Email already registered');
+      }
+
+      user.email = updateData.email;
+    }
+
+    // Update fullName if provided
+    if (updateData.fullName !== undefined) {
+      user.fullName = updateData.fullName || null;
+    }
+
+    return user.save();
+  }
 }
