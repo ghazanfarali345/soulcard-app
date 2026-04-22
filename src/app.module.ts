@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { GameSessionModule } from './game-session/game-session.module';
+import { GeminiModule } from './gemini/gemini.module';
 import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
 
 @Module({
@@ -18,6 +19,7 @@ import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
     AuthModule,
     UsersModule,
     GameSessionModule,
+    GeminiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

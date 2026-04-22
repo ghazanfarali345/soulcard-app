@@ -45,6 +45,7 @@ async function bootstrap() {
     .addTag('Auth', 'Authentication endpoints')
     .addTag('Users', 'User management endpoints')
     .addTag('Game Sessions', 'Game session management endpoints')
+    .addTag('AI - Gemini', 'Google Gemini AI integration endpoints')
     .addBearerAuth(
       {
         type: 'http',
