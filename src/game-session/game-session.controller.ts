@@ -173,7 +173,8 @@ export class GameSessionController {
   })
   @ApiParam({
     name: 'questionId',
-    description: 'The question number (1-based). Use 1 for first question, 2 for second, etc.',
+    description:
+      'The question number (1-based). Use 1 for first question, 2 for second, etc.',
     example: '1',
   })
   @ApiOperation({
@@ -257,7 +258,8 @@ export class GameSessionController {
   })
   @ApiParam({
     name: 'questionId',
-    description: 'The question number to skip (1-based). Use 1 for first question, 2 for second, etc.',
+    description:
+      'The question number to skip (1-based). Use 1 for first question, 2 for second, etc.',
     example: '1',
   })
   @ApiOperation({

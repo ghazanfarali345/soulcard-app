@@ -12,8 +12,10 @@ export class UserAnswerService {
   constructor(
     @InjectModel(UserAnswer.name) private userAnswerModel: Model<UserAnswer>,
     @InjectModel(Session.name) private sessionModel: Model<Session>,
-    @InjectModel(QuestionAnswerKey.name) private questionAnswerKeyModel: Model<QuestionAnswerKey>,
-    @InjectModel(SessionResult.name) private sessionResultModel: Model<SessionResult>,
+    @InjectModel(QuestionAnswerKey.name)
+    private questionAnswerKeyModel: Model<QuestionAnswerKey>,
+    @InjectModel(SessionResult.name)
+    private sessionResultModel: Model<SessionResult>,
     private scoringService: ScoringService,
   ) {}
 

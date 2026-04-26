@@ -35,4 +35,5 @@ export class QuestionAnswerKey extends Document {
   createdAt: Date;
 }
 
-export const QuestionAnswerKeySchema = SchemaFactory.createForClass(QuestionAnswerKey);
+export const QuestionAnswerKeySchema =
+  SchemaFactory.createForClass(QuestionAnswerKey);

@@ -22,7 +22,8 @@ interface QuestionData {
 export class GameSessionService {
   constructor(
     @InjectModel(Session.name) private sessionModel: Model<Session>,
-    @InjectModel(QuestionAnswerKey.name) private questionAnswerKeyModel: Model<QuestionAnswerKey>,
+    @InjectModel(QuestionAnswerKey.name)
+    private questionAnswerKeyModel: Model<QuestionAnswerKey>,
     private geminiService: GeminiService,
   ) {}
 

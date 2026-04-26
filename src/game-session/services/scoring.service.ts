@@ -111,7 +111,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
       console.log('=== SCORING RESPONSE ===');
       console.log('Full response:', response);
       console.log('=== END RESPONSE ===');
-      
+
       const lines = response.split('\n');
 
       let similarityScore: number | null = null;
@@ -124,7 +124,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
 
       for (const line of lines) {
         const trimmedLine = line.trim();
-        
+
         if (!trimmedLine) continue; // Skip empty lines
 
         console.log('Processing line:', trimmedLine);

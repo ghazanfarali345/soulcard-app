@@ -2,8 +2,14 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Session, SessionSchema } from './entities/session.entity';
 import { UserAnswer, UserAnswerSchema } from './entities/user-answer.entity';
-import { QuestionAnswerKey, QuestionAnswerKeySchema } from './entities/question-answer-key.entity';
-import { SessionResult, SessionResultSchema } from './entities/session-result.entity';
+import {
+  QuestionAnswerKey,
+  QuestionAnswerKeySchema,
+} from './entities/question-answer-key.entity';
+import {
+  SessionResult,
+  SessionResultSchema,
+} from './entities/session-result.entity';
 import { GameSessionController } from './game-session.controller';
 import { GameSessionService } from './game-session.service';
 import { UserAnswerService } from './services/user-answer.service';
