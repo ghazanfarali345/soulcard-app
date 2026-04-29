@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 export interface PerQuestionScore {
+  constructiveFeedback: string;
   similarityScore: number; // 0-100
   metrics: {
     reflective: number; // 0-20

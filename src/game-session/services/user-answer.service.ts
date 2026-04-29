@@ -82,6 +82,7 @@ export class UserAnswerService {
           similarityScore: scoringResult.similarityScore,
           metrics: scoringResult.metrics,
           guidedInsight: scoringResult.guidedInsight,
+          constructiveFeedback: scoringResult.constructiveFeedback,
         },
         answeredAt: new Date(),
       });
@@ -110,6 +111,7 @@ export class UserAnswerService {
           similarityScore: scoringResult.similarityScore,
           metrics: scoringResult.metrics,
           guidedInsight: scoringResult.guidedInsight,
+          constructiveFeedback: scoringResult.constructiveFeedback,
         },
         isLastQuestion: session.answersSubmitted === session.noOfQuestions,
       };
@@ -236,6 +238,7 @@ export class UserAnswerService {
         similarityScore: answer.score.similarityScore,
         metrics: answer.score.metrics,
         guidedInsight: answer.score.guidedInsight,
+        constructiveFeedback: answer.score.constructiveFeedback ?? '', // ← add this line
       }));
 
       // Calculate aggregate scores
@@ -252,6 +255,7 @@ export class UserAnswerService {
           similarityScore: answer.score.similarityScore,
           metrics: answer.score.metrics,
           guidedInsight: answer.score.guidedInsight,
+          constructiveFeedback: answer.score.constructiveFeedback,
         },
       }));
 

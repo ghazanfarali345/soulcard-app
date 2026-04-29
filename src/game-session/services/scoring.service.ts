@@ -9,6 +9,7 @@ export interface ScoringResult {
     openness: number; // 0-20
     authenticity: number; // 0-20
   };
+  constructiveFeedback: string; // Encouraging feedback to prompt deeper reflection
   guidedInsight: string; // Personalized feedback on the answer
 }
 
@@ -16,12 +17,6 @@ export interface ScoringResult {
 export class ScoringService {
   constructor(private geminiService: GeminiService) {}
 
-  /**
-   * Score user answer against model answer
-   * @param userAnswer - The user's answer
-   * @param modelAnswer - The ideal model answer
-   * @returns Scoring result with similarity score and metrics
-   */
   async scoreAnswer(
     userAnswer: string,
     modelAnswer: string,
@@ -34,14 +29,9 @@ export class ScoringService {
         );
       }
 
-      // Create a prompt for scoring
       const scoringPrompt = this.buildScoringPrompt(userAnswer, modelAnswer);
-
-      // Get scoring from Gemini
       const scoringResponse =
         await this.geminiService.generateContent(scoringPrompt);
-
-      // Parse the response
       const result = this.parseScoringResponse(scoringResponse);
 
       return result;
@@ -56,12 +46,6 @@ export class ScoringService {
     }
   }
 
-  /**
-   * Build prompt for AI scoring
-   * @param userAnswer - User's answer
-   * @param modelAnswer - Model answer
-   * @returns Formatted prompt
-   */
   private buildScoringPrompt(userAnswer: string, modelAnswer: string): string {
     return `You are an expert evaluator. Score the following user answer against the model answer.
 
@@ -92,8 +76,13 @@ Please provide:
    Authenticity (0-20): How genuine and personal is the answer? Does it feel real and honest?
    Return as: Authenticity: [NUMBER]
 
-3. GUIDED INSIGHT (1-2 sentences):
-   Provide personalized, constructive feedback that helps the user understand their answer better.
+3. CONSTRUCTIVE FEEDBACK (1-2 sentences):
+   If the answer seems brief or lacking depth, provide encouraging feedback to prompt deeper reflection.
+   Suggest what additional perspective or detail could enrich their answer.
+   Return as: Constructive Feedback: [Your feedback text]
+
+4. GUIDED INSIGHT (1-2 sentences):
+   Provide personalized, deeper feedback that helps the user understand their answer better.
    Focus on what they did well and one area for deeper reflection.
    Return as: Guided Insight: [Your insight text]
 
@@ -103,16 +92,12 @@ Reflective: [NUMBER]
 Coherence: [NUMBER]
 Openness: [NUMBER]
 Authenticity: [NUMBER]
+Constructive Feedback: [Your feedback text]
 Guided Insight: [Your insight text]
 
 Remember: Be fair but honest. Similarity can be high even if slightly different wording. Score authenticity and openness based on emotional genuineness, not just words.`;
   }
 
-  /**
-   * Parse scoring response from Gemini
-   * @param response - Raw response from Gemini
-   * @returns Structured scoring result
-   */
   private parseScoringResponse(response: string): ScoringResult {
     try {
       console.log('=== SCORING RESPONSE ===');
@@ -122,6 +107,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
       const lines = response.split('\n');
 
       let similarityScore: number | null = null;
+      let constructiveFeedback: string | null = null;
       let guidedInsight: string | null = null;
       let metrics = {
         reflective: 0,
@@ -133,11 +119,11 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
       for (const line of lines) {
         const trimmedLine = line.trim();
 
-        if (!trimmedLine) continue; // Skip empty lines
+        if (!trimmedLine) continue;
 
         console.log('Processing line:', trimmedLine);
 
-        // Parse Similarity Score - try multiple patterns
+        // Parse Similarity Score
         if (trimmedLine.toLowerCase().includes('similarity')) {
           let match = trimmedLine.match(/:\s*(\d+)/);
           if (!match) match = trimmedLine.match(/(\d+)/);
@@ -150,7 +136,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
           }
         }
 
-        // Parse Reflective - try multiple patterns
+        // Parse Reflective
         if (trimmedLine.toLowerCase().includes('reflective')) {
           let match = trimmedLine.match(/:\s*(\d+)/);
           if (!match) match = trimmedLine.match(/(\d+)/);
@@ -163,7 +149,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
           }
         }
 
-        // Parse Coherence - try multiple patterns
+        // Parse Coherence
         if (trimmedLine.toLowerCase().includes('coherence')) {
           let match = trimmedLine.match(/:\s*(\d+)/);
           if (!match) match = trimmedLine.match(/(\d+)/);
@@ -176,7 +162,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
           }
         }
 
-        // Parse Openness - try multiple patterns
+        // Parse Openness
         if (trimmedLine.toLowerCase().includes('openness')) {
           let match = trimmedLine.match(/:\s*(\d+)/);
           if (!match) match = trimmedLine.match(/(\d+)/);
@@ -189,7 +175,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
           }
         }
 
-        // Parse Authenticity - try multiple patterns
+        // Parse Authenticity
         if (trimmedLine.toLowerCase().includes('authenticity')) {
           let match = trimmedLine.match(/:\s*(\d+)/);
           if (!match) match = trimmedLine.match(/(\d+)/);
@@ -202,9 +188,20 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
           }
         }
 
+        // Parse Constructive Feedback
+        if (trimmedLine.toLowerCase().includes('constructive feedback')) {
+          const match = trimmedLine.match(/constructive feedback:\s*(.+)/i);
+          if (match && match[1]) {
+            constructiveFeedback = match[1].trim();
+            console.log(
+              '✓ Parsed Constructive Feedback:',
+              constructiveFeedback,
+            );
+          }
+        }
+
         // Parse Guided Insight
         if (trimmedLine.toLowerCase().includes('guided insight')) {
-          // Extract text after "Guided Insight:"
           const match = trimmedLine.match(/guided insight:\s*(.+)/i);
           if (match && match[1]) {
             guidedInsight = match[1].trim();
@@ -213,7 +210,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
         }
       }
 
-      // Use defaults if not found
+      // Defaults if not found
       if (similarityScore === null) {
         console.warn('⚠ Similarity score not found, using default value 65');
         similarityScore = 65;
@@ -239,6 +236,12 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
         metrics.authenticity = 14;
       }
 
+      if (!constructiveFeedback) {
+        console.warn('⚠ Constructive feedback not found, using default');
+        constructiveFeedback =
+          'Try to elaborate further — sharing a specific example or memory could make your answer even more meaningful.';
+      }
+
       if (!guidedInsight) {
         console.warn('⚠ Guided insight not found, using default feedback');
         guidedInsight =
@@ -248,12 +251,14 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
       console.log('Final parsed scores:', {
         similarityScore,
         metrics,
+        constructiveFeedback,
         guidedInsight,
       });
 
       return {
         similarityScore,
         metrics,
+        constructiveFeedback,
         guidedInsight,
       };
     } catch (error) {
@@ -265,22 +270,15 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
     }
   }
 
-  /**
-   * Calculate aggregate scores from multiple per-question scores
-   * @param allScores - Array of scores from all questions
-   * @returns Final aggregate scores
-   */
   calculateAggregateScores(allScores: ScoringResult[]) {
     if (allScores.length === 0) {
       throw new HttpException('No scores to aggregate', HttpStatus.BAD_REQUEST);
     }
 
-    // Calculate overall score as average of similarity scores
     const overallScore =
       allScores.reduce((sum, score) => sum + score.similarityScore, 0) /
       allScores.length;
 
-    // Calculate metric averages
     const reflective =
       allScores.reduce((sum, score) => sum + score.metrics.reflective, 0) /
       allScores.length;
