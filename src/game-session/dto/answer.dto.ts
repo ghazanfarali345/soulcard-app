@@ -57,6 +57,13 @@ export class PerQuestionScoreDto {
     openness: number; // 0-20
     authenticity: number; // 0-20
   };
+
+  @ApiProperty({
+    example:
+      'Your response demonstrates strong reflection. Consider exploring the distinction between activity and strategy that the model answer emphasizes.',
+    description: 'Personalized guided insight and feedback on the answer',
+  })
+  guidedInsight: string;
 }
 
 export class AnswerResponseDto {

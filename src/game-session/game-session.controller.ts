@@ -205,6 +205,8 @@ export class GameSessionController {
               openness: 15,
               authenticity: 17,
             },
+            guidedInsight:
+              'Your response demonstrates strong reflection. Consider exploring the distinction between activity and strategy that the model answer emphasizes.',
           },
           isLastQuestion: false,
         },
@@ -414,6 +416,8 @@ export class GameSessionController {
                   openness: 15,
                   authenticity: 17,
                 },
+                guidedInsight:
+                  'Your response demonstrates strong reflection on the topic.',
               },
             },
           ],

@@ -81,6 +81,7 @@ export class UserAnswerService {
         score: {
           similarityScore: scoringResult.similarityScore,
           metrics: scoringResult.metrics,
+          guidedInsight: scoringResult.guidedInsight,
         },
         answeredAt: new Date(),
       });
@@ -108,6 +109,7 @@ export class UserAnswerService {
         score: {
           similarityScore: scoringResult.similarityScore,
           metrics: scoringResult.metrics,
+          guidedInsight: scoringResult.guidedInsight,
         },
         isLastQuestion: session.answersSubmitted === session.noOfQuestions,
       };
@@ -233,6 +235,7 @@ export class UserAnswerService {
       const scores: ScoringResult[] = answers.map((answer) => ({
         similarityScore: answer.score.similarityScore,
         metrics: answer.score.metrics,
+        guidedInsight: answer.score.guidedInsight,
       }));
 
       // Calculate aggregate scores
@@ -248,6 +251,7 @@ export class UserAnswerService {
         score: {
           similarityScore: answer.score.similarityScore,
           metrics: answer.score.metrics,
+          guidedInsight: answer.score.guidedInsight,
         },
       }));
 

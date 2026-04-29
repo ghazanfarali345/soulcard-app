@@ -9,6 +9,7 @@ export interface ScoringResult {
     openness: number; // 0-20
     authenticity: number; // 0-20
   };
+  guidedInsight: string; // Personalized feedback on the answer
 }
 
 @Injectable()
@@ -91,12 +92,18 @@ Please provide:
    Authenticity (0-20): How genuine and personal is the answer? Does it feel real and honest?
    Return as: Authenticity: [NUMBER]
 
+3. GUIDED INSIGHT (1-2 sentences):
+   Provide personalized, constructive feedback that helps the user understand their answer better.
+   Focus on what they did well and one area for deeper reflection.
+   Return as: Guided Insight: [Your insight text]
+
 FORMAT YOUR RESPONSE EXACTLY AS:
 Similarity Score: [NUMBER]
 Reflective: [NUMBER]
 Coherence: [NUMBER]
 Openness: [NUMBER]
 Authenticity: [NUMBER]
+Guided Insight: [Your insight text]
 
 Remember: Be fair but honest. Similarity can be high even if slightly different wording. Score authenticity and openness based on emotional genuineness, not just words.`;
   }
@@ -115,6 +122,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
       const lines = response.split('\n');
 
       let similarityScore: number | null = null;
+      let guidedInsight: string | null = null;
       let metrics = {
         reflective: 0,
         coherence: 0,
@@ -193,6 +201,16 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
             console.log('✓ Parsed Authenticity:', metrics.authenticity);
           }
         }
+
+        // Parse Guided Insight
+        if (trimmedLine.toLowerCase().includes('guided insight')) {
+          // Extract text after "Guided Insight:"
+          const match = trimmedLine.match(/guided insight:\s*(.+)/i);
+          if (match && match[1]) {
+            guidedInsight = match[1].trim();
+            console.log('✓ Parsed Guided Insight:', guidedInsight);
+          }
+        }
       }
 
       // Use defaults if not found
@@ -221,14 +239,22 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
         metrics.authenticity = 14;
       }
 
+      if (!guidedInsight) {
+        console.warn('⚠ Guided insight not found, using default feedback');
+        guidedInsight =
+          'Your response shows your perspective. Consider exploring the model answer to deepen your understanding of this question.';
+      }
+
       console.log('Final parsed scores:', {
         similarityScore,
         metrics,
+        guidedInsight,
       });
 
       return {
         similarityScore,
         metrics,
+        guidedInsight,
       };
     } catch (error) {
       console.error('Scoring parse error:', error);

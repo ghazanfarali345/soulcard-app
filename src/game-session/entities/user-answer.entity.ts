@@ -9,6 +9,7 @@ export interface PerQuestionScore {
     openness: number; // 0-20
     authenticity: number; // 0-20
   };
+  guidedInsight: string; // Personalized feedback on the answer
 }
 
 @Schema({ timestamps: true })
@@ -40,6 +41,7 @@ export class UserAnswer extends Document {
         openness: Number,
         authenticity: Number,
       },
+      guidedInsight: String,
     },
     required: true,
   })
