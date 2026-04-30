@@ -238,12 +238,19 @@ export class UserAnswerService {
         similarityScore: answer.score.similarityScore,
         metrics: answer.score.metrics,
         guidedInsight: answer.score.guidedInsight,
-        constructiveFeedback: answer.score.constructiveFeedback ?? '', // ← add this line
+        constructiveFeedback: answer.score.constructiveFeedback ?? '',
       }));
 
       // Calculate aggregate scores
       const aggregateScores =
         this.scoringService.calculateAggregateScores(scores);
+
+      // Generate AI narrative insights
+      const reflectiveInsights = await this.scoringService.generateReflectiveInsights(
+        aggregateScores.overallScore,
+        aggregateScores.metrics,
+        { soulSpace: session.soulSpace, vibe: session.vibe }
+      );
 
       // Create and save SessionResult for history
       const answersBreakdown = answers.map((answer) => ({
@@ -271,6 +278,7 @@ export class UserAnswerService {
           overallScore: aggregateScores.overallScore,
           metrics: aggregateScores.metrics,
         },
+        reflectiveInsights,
         answersBreakdown,
         completedAt: new Date(),
       });
@@ -280,6 +288,7 @@ export class UserAnswerService {
       return {
         sessionId,
         finalResults: aggregateScores,
+        reflectiveInsights,
         answersBreakdown,
       };
     } catch (error) {
@@ -315,12 +324,14 @@ export class UserAnswerService {
 
       // Fetch results from SessionResult collection if complete
       let results: any = null;
+      let reflectiveInsights: any = null;
       if (isComplete) {
         const sessionResult = await this.sessionResultModel.findOne({
           sessionId: new Types.ObjectId(sessionId),
         });
         if (sessionResult) {
           results = sessionResult.finalResults;
+          reflectiveInsights = sessionResult.reflectiveInsights;
         }
       }
 
@@ -332,6 +343,7 @@ export class UserAnswerService {
         isComplete,
         status: session.status,
         results,
+        reflectiveInsights,
       };
     } catch (error) {
       if (error instanceof HttpException) {

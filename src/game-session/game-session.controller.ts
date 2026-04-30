@@ -349,6 +349,7 @@ export class GameSessionController {
           isComplete: false,
           status: 'IN_PROGRESS',
           results: null,
+          reflectiveInsights: null,
         },
       },
     },
@@ -401,6 +402,16 @@ export class GameSessionController {
               openness: 15,
               authenticity: 17,
             },
+          },
+          reflectiveInsights: {
+            reflectiveStrengths: 'You showed up and participated, which is the most important step!',
+            deepeningAwareness: 'To enhance your self-awareness, consider focusing on Reflective Depth...',
+            whatThisMeans: 'Your responses demonstrate authentic self-awareness...',
+            nextBestAction: 'Continue holding space for what arises...',
+            personalizedRecommendations: [
+              'Begin with short, simple reflections',
+              'Read reflective essays'
+            ]
           },
           answersBreakdown: [
             {

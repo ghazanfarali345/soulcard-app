@@ -13,6 +13,14 @@ export interface ScoringResult {
   guidedInsight: string; // Personalized feedback on the answer
 }
 
+export interface ReflectiveInsights {
+  reflectiveStrengths: string;
+  deepeningAwareness: string;
+  whatThisMeans: string;
+  nextBestAction: string;
+  personalizedRecommendations: string[];
+}
+
 @Injectable()
 export class ScoringService {
   constructor(private geminiService: GeminiService) {}
@@ -303,6 +311,131 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
         openness: Math.round(openness),
         authenticity: Math.round(authenticity),
       },
+    };
+  }
+
+  async generateReflectiveInsights(
+    overallScore: number,
+    metrics: {
+      reflective: number;
+      coherence: number;
+      openness: number;
+      authenticity: number;
+    },
+    context: { soulSpace: string; vibe: string },
+  ): Promise<ReflectiveInsights> {
+    try {
+      const prompt = `You are a deeply empathetic and insightful life coach. Analyze the following results from a "Soul Card Game" session and provide personalized, narrative feedback.
+
+SESSION CONTEXT:
+- Soul Space: ${context.soulSpace}
+- Vibe: ${context.vibe}
+
+AGGREGATE SCORES:
+- Overall Score: ${overallScore}/100
+- Reflective: ${metrics.reflective}/20
+- Coherence: ${metrics.coherence}/20
+- Openness: ${metrics.openness}/20
+- Authenticity: ${metrics.authenticity}/20
+
+Please generate exactly 5 fields. Use a tone that is encouraging, authentic, and growth-oriented.
+
+1. REFLECTIVE STRENGTHS:
+   Write 2-3 sentences about what the user did well. Acknowledge their participation as a major first step. Reference specific strong metrics (score > 15/20).
+
+2. DEEPENING AWARENESS:
+   Identify one area for growth (the lowest score). Provide 2-3 sentences about how they can improve. Include 2-3 specific strategies (bullet points starting with →). Use the exact phrases like "To enhance your self-awareness, consider focusing on [Area Name]".
+
+3. WHAT THIS MEANS:
+   Provide a 1-2 sentence interpretation of their overall performance. Assign a "Growth Level" (e.g., Opening Awareness, Emerging Awareness, Deepening Awareness).
+
+4. NEXT BEST ACTION:
+   A single, powerful sentence recommending one thing they should do immediately to continue their journey.
+
+5. PERSONALIZED RECOMMENDATIONS:
+   Provide 3-5 specific, actionable bullet-point recommendations (starting with •).
+
+FORMAT YOUR RESPONSE EXACTLY AS:
+REFLECTIVE STRENGTHS: [Text]
+DEEPENING AWARENESS: [Text with bullet points]
+WHAT THIS MEANS: [Text]
+NEXT BEST ACTION: [Text]
+PERSONALIZED RECOMMENDATIONS:
+• [Recommendation 1]
+• [Recommendation 2]
+• [Recommendation 3]
+`;
+
+      const response = await this.geminiService.generateContent(prompt);
+      return this.parseReflectiveInsights(response);
+    } catch (error) {
+      console.error('Error generating reflective insights:', error);
+      // Return a fallback object so the API doesn't fail
+      return {
+        reflectiveStrengths: 'You showed up and participated, which is the most important step!',
+        deepeningAwareness: 'Every journey of self-discovery has areas to explore further.',
+        whatThisMeans: 'You are on a journey of self-awareness.',
+        nextBestAction: 'Continue holding space for what arises.',
+        personalizedRecommendations: [
+          'Practice daily self-reflection',
+          'Explore different soul spaces',
+          'Be patient with your growth journey',
+        ],
+      };
+    }
+  }
+
+  private parseReflectiveInsights(response: string): ReflectiveInsights {
+    const lines = response.split('\n').map((l) => l.trim());
+    let reflectiveStrengths = '';
+    let deepeningAwareness = '';
+    let whatThisMeans = '';
+    let nextBestAction = '';
+    const personalizedRecommendations: string[] = [];
+
+    let currentSection = '';
+
+    for (const line of lines) {
+      if (!line) continue;
+
+      if (line.startsWith('REFLECTIVE STRENGTHS:')) {
+        currentSection = 'strengths';
+        reflectiveStrengths = line.replace('REFLECTIVE STRENGTHS:', '').trim();
+      } else if (line.startsWith('DEEPENING AWARENESS:')) {
+        currentSection = 'awareness';
+        deepeningAwareness = line.replace('DEEPENING AWARENESS:', '').trim();
+      } else if (line.startsWith('WHAT THIS MEANS:')) {
+        currentSection = 'meaning';
+        whatThisMeans = line.replace('WHAT THIS MEANS:', '').trim();
+      } else if (line.startsWith('NEXT BEST ACTION:')) {
+        currentSection = 'action';
+        nextBestAction = line.replace('NEXT BEST ACTION:', '').trim();
+      } else if (line.startsWith('PERSONALIZED RECOMMENDATIONS:')) {
+        currentSection = 'recommendations';
+      } else {
+        // Content for current section
+        if (currentSection === 'strengths') {
+          reflectiveStrengths += ' ' + line;
+        } else if (currentSection === 'awareness') {
+          deepeningAwareness += '\n' + line;
+        } else if (currentSection === 'meaning') {
+          whatThisMeans += ' ' + line;
+        } else if (currentSection === 'action') {
+          nextBestAction += ' ' + line;
+        } else if (currentSection === 'recommendations' && (line.startsWith('•') || line.startsWith('-'))) {
+          personalizedRecommendations.push(line.substring(1).trim());
+        }
+      }
+    }
+
+    return {
+      reflectiveStrengths: reflectiveStrengths.trim(),
+      deepeningAwareness: deepeningAwareness.trim(),
+      whatThisMeans: whatThisMeans.trim(),
+      nextBestAction: nextBestAction.trim(),
+      personalizedRecommendations: personalizedRecommendations.length > 0 
+        ? personalizedRecommendations 
+        : ['Continue your reflection journey'],
     };
   }
 }
