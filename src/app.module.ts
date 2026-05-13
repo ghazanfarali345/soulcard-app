@@ -1,5 +1,6 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +17,10 @@ import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
           process.env.MONGODB_URI || 'mongodb://localhost:27017/soul_card_db',
       }),
     }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 10, // General limit, we will override specifically if needed
+    }]),
     AuthModule,
     UsersModule,
     GameSessionModule,

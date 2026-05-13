@@ -18,6 +18,36 @@ export class Session extends Document {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  hostId: Types.ObjectId;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  participants: Types.ObjectId[];
+
+  @Prop({
+    type: [
+      {
+        userId: { type: Types.ObjectId, ref: 'User' },
+        displayName: String,
+        answersSubmitted: { type: Number, default: 0 },
+        skippedQuestions: { type: [Number], default: [] },
+      },
+    ],
+    default: [],
+  })
+  participantsInfo: {
+    userId: Types.ObjectId;
+    displayName: string;
+    answersSubmitted: number;
+    skippedQuestions: number[];
+  }[];
+
+  @Prop()
+  joinCode?: string;
+
+  @Prop()
+  joinCodeExpiresAt?: Date;
+
   @Prop({ required: true })
   soulSpace: string;
 

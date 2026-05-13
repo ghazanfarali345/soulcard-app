@@ -5,6 +5,7 @@ import { Session, SessionStatus } from './entities/session.entity';
 import { QuestionAnswerKey } from './entities/question-answer-key.entity';
 import { SessionDetailsDto } from './dto/session-details.dto';
 import { GeminiService } from '../gemini/gemini.service';
+import * as crypto from 'crypto';
 
 interface QuestionData {
   question: string;
@@ -31,11 +32,51 @@ export class GameSessionService {
     userId: string,
     dto: SessionDetailsDto,
   ): Promise<Session> {
+    const userObjectId = new Types.ObjectId(userId);
     const newSession = new this.sessionModel({
-      userId: new Types.ObjectId(userId),
+      userId: userObjectId,
+      hostId: userObjectId,
+      participants: [userObjectId],
+      participantsInfo: [], // Host info will be added if they provide a displayName later, or we can add it now if we have it
       ...dto,
     });
     return await newSession.save();
+  }
+
+  async generateJoinCode(sessionId: string): Promise<string> {
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session) {
+      throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Generate 12-char case-sensitive alphanumeric + symbols code
+    // Allowed chars: A-Z, a-z, 0-9, !, @, #, $, %, ^, &, *, (, ), -, _, +, =
+    const allowedChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_+=';
+    let code = '';
+    const bytes = crypto.randomBytes(12);
+    for (let i = 0; i < 12; i++) {
+      code += allowedChars[bytes[i] % allowedChars.length];
+    }
+
+    const ttl = parseInt(process.env.JOIN_CODE_TTL_MINUTES || '15', 10);
+    session.joinCode = code;
+    session.joinCodeExpiresAt = new Date(Date.now() + ttl * 60 * 1000);
+    await session.save();
+
+    return code;
+  }
+
+  async validateJoinCode(code: string): Promise<Session> {
+    const session = await this.sessionModel.findOne({
+      joinCode: code,
+      joinCodeExpiresAt: { $gt: new Date() },
+    });
+
+    if (!session) {
+      throw new HttpException('Invalid or expired join code', HttpStatus.BAD_REQUEST);
+    }
+
+    return session;
   }
 
   /**

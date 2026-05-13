@@ -16,6 +16,7 @@ import {
   ApiSecurity,
   ApiParam,
 } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { GameSessionService } from './game-session.service';
 import { UserAnswerService } from './services/user-answer.service';
@@ -29,6 +30,9 @@ import {
   FinalResultsDto,
   ProgressDto,
 } from './dto/answer.dto';
+import { InvitationService } from './services/invitation.service';
+import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { JoinSessionDto } from './dto/join-session.dto';
 
 @ApiTags('Game Sessions')
 @Controller('game-sessions')
@@ -36,6 +40,7 @@ export class GameSessionController {
   constructor(
     private readonly gameSessionService: GameSessionService,
     private readonly userAnswerService: UserAnswerService,
+    private readonly invitationService: InvitationService,
   ) {}
 
   @Post('sessionDetails')
@@ -92,6 +97,71 @@ export class GameSessionController {
       success: true,
       message: 'Session details collected successfully',
       data,
+    };
+  }
+
+  @Post(':sessionId/invite')
+  @UseGuards(JwtGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiBearerAuth('access-token')
+  @ApiSecurity('access-token')
+  @ApiParam({
+    name: 'sessionId',
+    description: 'The ID of the session',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiOperation({
+    summary: 'Invite Players to Session',
+    description: 'Send an OTP join code to players via email or SMS.',
+  })
+  @ApiBody({ type: CreateInvitationDto })
+  async invitePlayer(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: CreateInvitationDto,
+    @Req() req: any,
+  ) {
+    const hostId = req.user.userId;
+    const invitation = await this.invitationService.createInvitation(
+      sessionId,
+      hostId,
+      dto.email,
+      dto.phone,
+    );
+    return {
+      success: true,
+      message: 'Invitation sent successfully',
+      data: {
+        code: invitation.code,
+        expiresAt: invitation.expiresAt,
+      },
+    };
+  }
+
+  @Post('join')
+  @UseGuards(JwtGuard)
+  @ApiBearerAuth('access-token')
+  @ApiSecurity('access-token')
+  @ApiOperation({
+    summary: 'Join Session with OTP',
+    description: 'Join an existing multiplayer session using a 12-character OTP join code.',
+  })
+  @ApiBody({ type: JoinSessionDto })
+  async joinSession(@Req() req: any, @Body() dto: JoinSessionDto) {
+    const userId = req.user.userId;
+    const session = await this.invitationService.acceptInvitation(
+      dto.code,
+      userId,
+      dto.displayName,
+    );
+    return {
+      success: true,
+      message: 'Joined session successfully',
+      data: {
+        sessionId: session._id,
+        soulSpace: session.soulSpace,
+        vibe: session.vibe,
+        status: session.status,
+      },
     };
   }
 
@@ -305,13 +375,16 @@ export class GameSessionController {
   async skipQuestion(
     @Param('sessionId') sessionId: string,
     @Param('questionId') questionId: string,
+    @Req() req: any,
   ) {
+    const userId = req.user?.userId;
     // Convert 1-based question number to 0-based index
     const questionIndex = parseInt(questionId, 10) - 1;
 
     const data = await this.userAnswerService.skipQuestion(
       sessionId,
       questionIndex,
+      userId,
     );
 
     return {
@@ -448,8 +521,15 @@ export class GameSessionController {
     status: 500,
     description: 'Internal server error - Failed to calculate results',
   })
-  async getFinalResults(@Param('sessionId') sessionId: string) {
-    const data = await this.userAnswerService.calculateFinalResults(sessionId);
+  async getFinalResults(
+    @Param('sessionId') sessionId: string,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.userId;
+    const data = await this.userAnswerService.calculateFinalResults(
+      sessionId,
+      userId,
+    );
     return {
       success: true,
       message: 'Results calculated successfully',

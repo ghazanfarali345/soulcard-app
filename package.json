@@ -28,6 +28,8 @@
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.7",
+    "@nestjs/throttler": "^6.5.0",
+    "@sendgrid/mail": "^8.1.6",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -38,7 +40,8 @@
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "twilio": "^6.0.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
