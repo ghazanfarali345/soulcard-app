@@ -536,4 +536,35 @@ export class GameSessionController {
       data,
     };
   }
+  @Post(':sessionId/end')
+  @UseGuards(JwtGuard)
+  @ApiBearerAuth('access-token')
+  @ApiSecurity('access-token')
+  @ApiParam({
+    name: 'sessionId',
+    description: 'The ID of the session',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiOperation({
+    summary: 'End Game Session',
+    description: 'Manually end the game session. Only the host can perform this action.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Session ended successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'Session ended successfully',
+      },
+    },
+  })
+  async endSession(@Param('sessionId') sessionId: string, @Req() req: any) {
+    const userId = req.user?.userId;
+    await this.gameSessionService.endSession(sessionId, userId);
+    return {
+      success: true,
+      message: 'Session ended successfully',
+    };
+  }
 }

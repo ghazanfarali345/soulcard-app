@@ -8,23 +8,15 @@ export interface AnswerBreakdown {
   modelAnswer: string;
   score: {
     similarityScore: number;
-    metrics: {
-      reflective: number;
-      coherence: number;
-      openness: number;
-      authenticity: number;
-    };
+    metrics: Record<string, number>;
+    guidedInsight: string;
+    constructiveFeedback: string;
   };
 }
 
 export interface FinalResultsData {
   overallScore: number; // 0-100
-  metrics: {
-    reflective: number; // 0-20
-    coherence: number; // 0-20
-    openness: number; // 0-20
-    authenticity: number; // 0-20
-  };
+  metrics: Record<string, number>; // Dynamic metrics based on engagement mode
 }
 
 export interface ReflectiveInsightsData {
@@ -61,12 +53,7 @@ export class SessionResult extends Document {
   @Prop({
     type: {
       overallScore: Number,
-      metrics: {
-        reflective: Number,
-        coherence: Number,
-        openness: Number,
-        authenticity: Number,
-      },
+      metrics: { type: Object }, // Dynamic metrics
     },
     required: true,
   })
@@ -93,12 +80,9 @@ export class SessionResult extends Document {
         modelAnswer: String,
         score: {
           similarityScore: Number,
-          metrics: {
-            reflective: Number,
-            coherence: Number,
-            openness: Number,
-            authenticity: Number,
-          },
+          metrics: { type: Object }, // Dynamic metrics
+          guidedInsight: String,
+          constructiveFeedback: String,
         },
       },
     ],

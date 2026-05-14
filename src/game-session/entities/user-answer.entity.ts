@@ -4,12 +4,7 @@ import { Document, Types } from 'mongoose';
 export interface PerQuestionScore {
   constructiveFeedback: string;
   similarityScore: number; // 0-100
-  metrics: {
-    reflective: number; // 0-20
-    coherence: number; // 0-20
-    openness: number; // 0-20
-    authenticity: number; // 0-20
-  };
+  metrics: Record<string, number>; // Dynamic metrics based on engagement mode
   guidedInsight: string; // Personalized feedback on the answer
 }
 
@@ -39,13 +34,9 @@ export class UserAnswer extends Document {
   @Prop({
     type: {
       similarityScore: Number,
-      metrics: {
-        reflective: Number,
-        coherence: Number,
-        openness: Number,
-        authenticity: Number,
-      },
+      metrics: { type: Object }, // Dynamic metrics
       guidedInsight: String,
+      constructiveFeedback: String,
     },
     required: true,
   })

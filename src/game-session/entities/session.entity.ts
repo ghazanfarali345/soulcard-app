@@ -31,6 +31,7 @@ export class Session extends Document {
         displayName: String,
         answersSubmitted: { type: Number, default: 0 },
         skippedQuestions: { type: [Number], default: [] },
+        isCompleted: { type: Boolean, default: false },
       },
     ],
     default: [],
@@ -40,6 +41,7 @@ export class Session extends Document {
     displayName: string;
     answersSubmitted: number;
     skippedQuestions: number[];
+    isCompleted: boolean;
   }[];
 
   @Prop()

@@ -1,14 +1,13 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { GeminiService } from '../../gemini/gemini.service';
+import {
+  EngagementMode,
+  ENGAGEMENT_MODE_CONFIG,
+} from '../engagement-mode.config';
 
 export interface ScoringResult {
   similarityScore: number; // 0-100
-  metrics: {
-    reflective: number; // 0-20
-    coherence: number; // 0-20
-    openness: number; // 0-20
-    authenticity: number; // 0-20
-  };
+  metrics: Record<string, number>; // Dynamic metrics based on engagement mode
   constructiveFeedback: string; // Encouraging feedback to prompt deeper reflection
   guidedInsight: string; // Personalized feedback on the answer
 }
@@ -28,6 +27,7 @@ export class ScoringService {
   async scoreAnswer(
     userAnswer: string,
     modelAnswer: string,
+    engagementMode: EngagementMode = EngagementMode.REFLECTIVE,
   ): Promise<ScoringResult> {
     try {
       if (!userAnswer || !modelAnswer) {
@@ -37,10 +37,14 @@ export class ScoringService {
         );
       }
 
-      const scoringPrompt = this.buildScoringPrompt(userAnswer, modelAnswer);
+      const scoringPrompt = this.buildScoringPrompt(
+        userAnswer,
+        modelAnswer,
+        engagementMode,
+      );
       const scoringResponse =
         await this.geminiService.generateContent(scoringPrompt);
-      const result = this.parseScoringResponse(scoringResponse);
+      const result = this.parseScoringResponse(scoringResponse, engagementMode);
 
       return result;
     } catch (error) {
@@ -54,8 +58,26 @@ export class ScoringService {
     }
   }
 
-  private buildScoringPrompt(userAnswer: string, modelAnswer: string): string {
-    return `You are an expert evaluator. Score the following user answer against the model answer.
+  private buildScoringPrompt(
+    userAnswer: string,
+    modelAnswer: string,
+    engagementMode: EngagementMode,
+  ): string {
+    const config = ENGAGEMENT_MODE_CONFIG[engagementMode];
+    const parametersPrompt = config.parameters
+      .map(
+        (p) =>
+          `${p.name} (0-20): ${p.description}\n   Return as: ${p.name}: [NUMBER]`,
+      )
+      .join('\n\n   ');
+
+    const formatPrompt = config.parameters
+      .map((p) => `${p.name}: [NUMBER]`)
+      .join('\n');
+
+    return `You are an expert evaluator acting as a ${config.guidanceLayer}. Score the following user answer against the model answer.
+Engagement Mode: ${engagementMode}
+Guidance Style: ${config.guidanceLayer} (${config.reason})
 
 MODEL ANSWER (IDEAL RESPONSE):
 "${modelAnswer}"
@@ -72,127 +94,67 @@ Please provide:
 
 2. QUALITY METRICS (Each 0-20):
    
-   Reflective (0-20): How deep and thoughtful is the answer? Does it show genuine reflection?
-   Return as: Reflective: [NUMBER]
-   
-   Coherence (0-20): How well organized and clear is the answer? Does it flow logically?
-   Return as: Coherence: [NUMBER]
-   
-   Openness (0-20): How receptive and vulnerable is the answer? Does it show genuine openness?
-   Return as: Openness: [NUMBER]
-   
-   Authenticity (0-20): How genuine and personal is the answer? Does it feel real and honest?
-   Return as: Authenticity: [NUMBER]
+   ${parametersPrompt}
 
 3. CONSTRUCTIVE FEEDBACK (1-2 sentences):
-   If the answer seems brief or lacking depth, provide encouraging feedback to prompt deeper reflection.
-   Suggest what additional perspective or detail could enrich their answer.
+   Provide encouraging feedback in your capacity as a ${config.guidanceLayer}.
+   If the answer seems brief or lacking depth, prompt deeper reflection aligned with ${engagementMode} goals.
    Return as: Constructive Feedback: [Your feedback text]
 
 4. GUIDED INSIGHT (1-2 sentences):
    Provide personalized, deeper feedback that helps the user understand their answer better.
-   Focus on what they did well and one area for deeper reflection.
+   Focus on what they did well and one area for deeper reflection or growth.
    Return as: Guided Insight: [Your insight text]
 
 FORMAT YOUR RESPONSE EXACTLY AS:
 Similarity Score: [NUMBER]
-Reflective: [NUMBER]
-Coherence: [NUMBER]
-Openness: [NUMBER]
-Authenticity: [NUMBER]
+${formatPrompt}
 Constructive Feedback: [Your feedback text]
 Guided Insight: [Your insight text]
 
-Remember: Be fair but honest. Similarity can be high even if slightly different wording. Score authenticity and openness based on emotional genuineness, not just words.`;
+Remember: Be fair but honest. Similarity can be high even if slightly different wording. Score the metrics based on the definitions provided above for the ${engagementMode} mode.`;
   }
 
-  private parseScoringResponse(response: string): ScoringResult {
+  private parseScoringResponse(
+    response: string,
+    engagementMode: EngagementMode,
+  ): ScoringResult {
     try {
-      console.log('=== SCORING RESPONSE ===');
-      console.log('Full response:', response);
-      console.log('=== END RESPONSE ===');
-
+      const config = ENGAGEMENT_MODE_CONFIG[engagementMode];
       const lines = response.split('\n');
 
       let similarityScore: number | null = null;
       let constructiveFeedback: string | null = null;
       let guidedInsight: string | null = null;
-      let metrics = {
-        reflective: 0,
-        coherence: 0,
-        openness: 0,
-        authenticity: 0,
-      };
+      const metrics: Record<string, number> = {};
+
+      // Initialize metrics with default 0
+      config.parameters.forEach((p) => {
+        metrics[p.name.toLowerCase()] = 0;
+      });
 
       for (const line of lines) {
         const trimmedLine = line.trim();
-
         if (!trimmedLine) continue;
-
-        console.log('Processing line:', trimmedLine);
 
         // Parse Similarity Score
         if (trimmedLine.toLowerCase().includes('similarity')) {
-          let match = trimmedLine.match(/:\s*(\d+)/);
-          if (!match) match = trimmedLine.match(/(\d+)/);
+          const match = trimmedLine.match(/:\s*(\d+)/) || trimmedLine.match(/(\d+)/);
           if (match) {
-            similarityScore = Math.min(
-              100,
-              Math.max(0, parseInt(match[1], 10)),
-            );
-            console.log('✓ Parsed Similarity Score:', similarityScore);
+            similarityScore = Math.min(100, Math.max(0, parseInt(match[1], 10)));
           }
         }
 
-        // Parse Reflective
-        if (trimmedLine.toLowerCase().includes('reflective')) {
-          let match = trimmedLine.match(/:\s*(\d+)/);
-          if (!match) match = trimmedLine.match(/(\d+)/);
-          if (match) {
-            metrics.reflective = Math.min(
-              20,
-              Math.max(0, parseInt(match[1], 10)),
-            );
-            console.log('✓ Parsed Reflective:', metrics.reflective);
-          }
-        }
-
-        // Parse Coherence
-        if (trimmedLine.toLowerCase().includes('coherence')) {
-          let match = trimmedLine.match(/:\s*(\d+)/);
-          if (!match) match = trimmedLine.match(/(\d+)/);
-          if (match) {
-            metrics.coherence = Math.min(
-              20,
-              Math.max(0, parseInt(match[1], 10)),
-            );
-            console.log('✓ Parsed Coherence:', metrics.coherence);
-          }
-        }
-
-        // Parse Openness
-        if (trimmedLine.toLowerCase().includes('openness')) {
-          let match = trimmedLine.match(/:\s*(\d+)/);
-          if (!match) match = trimmedLine.match(/(\d+)/);
-          if (match) {
-            metrics.openness = Math.min(
-              20,
-              Math.max(0, parseInt(match[1], 10)),
-            );
-            console.log('✓ Parsed Openness:', metrics.openness);
-          }
-        }
-
-        // Parse Authenticity
-        if (trimmedLine.toLowerCase().includes('authenticity')) {
-          let match = trimmedLine.match(/:\s*(\d+)/);
-          if (!match) match = trimmedLine.match(/(\d+)/);
-          if (match) {
-            metrics.authenticity = Math.min(
-              20,
-              Math.max(0, parseInt(match[1], 10)),
-            );
-            console.log('✓ Parsed Authenticity:', metrics.authenticity);
+        // Parse dynamic metrics
+        for (const p of config.parameters) {
+          if (trimmedLine.toLowerCase().startsWith(p.name.toLowerCase())) {
+            const match = trimmedLine.match(/:\s*(\d+)/) || trimmedLine.match(/(\d+)/);
+            if (match) {
+              metrics[p.name.toLowerCase()] = Math.min(
+                20,
+                Math.max(0, parseInt(match[1], 10)),
+              );
+            }
           }
         }
 
@@ -201,10 +163,6 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
           const match = trimmedLine.match(/constructive feedback:\s*(.+)/i);
           if (match && match[1]) {
             constructiveFeedback = match[1].trim();
-            console.log(
-              '✓ Parsed Constructive Feedback:',
-              constructiveFeedback,
-            );
           }
         }
 
@@ -213,55 +171,25 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
           const match = trimmedLine.match(/guided insight:\s*(.+)/i);
           if (match && match[1]) {
             guidedInsight = match[1].trim();
-            console.log('✓ Parsed Guided Insight:', guidedInsight);
           }
         }
       }
 
       // Defaults if not found
-      if (similarityScore === null) {
-        console.warn('⚠ Similarity score not found, using default value 65');
-        similarityScore = 65;
-      }
-
-      if (metrics.reflective === 0) {
-        console.warn('⚠ Reflective not found, using default value 14');
-        metrics.reflective = 14;
-      }
-
-      if (metrics.coherence === 0) {
-        console.warn('⚠ Coherence not found, using default value 14');
-        metrics.coherence = 14;
-      }
-
-      if (metrics.openness === 0) {
-        console.warn('⚠ Openness not found, using default value 14');
-        metrics.openness = 14;
-      }
-
-      if (metrics.authenticity === 0) {
-        console.warn('⚠ Authenticity not found, using default value 14');
-        metrics.authenticity = 14;
-      }
+      if (similarityScore === null) similarityScore = 65;
+      
+      config.parameters.forEach((p) => {
+        const key = p.name.toLowerCase();
+        if (metrics[key] === 0) metrics[key] = 14;
+      });
 
       if (!constructiveFeedback) {
-        console.warn('⚠ Constructive feedback not found, using default');
-        constructiveFeedback =
-          'Try to elaborate further — sharing a specific example or memory could make your answer even more meaningful.';
+        constructiveFeedback = 'Try to elaborate further — sharing a specific example or memory could make your answer even more meaningful.';
       }
 
       if (!guidedInsight) {
-        console.warn('⚠ Guided insight not found, using default feedback');
-        guidedInsight =
-          'Your response shows your perspective. Consider exploring the model answer to deepen your understanding of this question.';
+        guidedInsight = 'Your response shows your perspective. Consider exploring the model answer to deepen your understanding of this question.';
       }
-
-      console.log('Final parsed scores:', {
-        similarityScore,
-        metrics,
-        constructiveFeedback,
-        guidedInsight,
-      });
 
       return {
         similarityScore,
@@ -287,45 +215,35 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
       allScores.reduce((sum, score) => sum + score.similarityScore, 0) /
       allScores.length;
 
-    const reflective =
-      allScores.reduce((sum, score) => sum + score.metrics.reflective, 0) /
-      allScores.length;
+    // Get all metric keys from the first score
+    const metricKeys = Object.keys(allScores[0].metrics);
+    const aggregateMetrics: Record<string, number> = {};
 
-    const coherence =
-      allScores.reduce((sum, score) => sum + score.metrics.coherence, 0) /
-      allScores.length;
-
-    const openness =
-      allScores.reduce((sum, score) => sum + score.metrics.openness, 0) /
-      allScores.length;
-
-    const authenticity =
-      allScores.reduce((sum, score) => sum + score.metrics.authenticity, 0) /
-      allScores.length;
+    metricKeys.forEach((key) => {
+      const sum = allScores.reduce((s, score) => s + (score.metrics[key] || 0), 0);
+      aggregateMetrics[key] = Math.round(sum / allScores.length);
+    });
 
     return {
       overallScore: Math.round(overallScore),
-      metrics: {
-        reflective: Math.round(reflective),
-        coherence: Math.round(coherence),
-        openness: Math.round(openness),
-        authenticity: Math.round(authenticity),
-      },
+      metrics: aggregateMetrics,
     };
   }
 
   async generateReflectiveInsights(
     overallScore: number,
-    metrics: {
-      reflective: number;
-      coherence: number;
-      openness: number;
-      authenticity: number;
-    },
-    context: { soulSpace: string; vibe: string },
+    metrics: Record<string, number>,
+    context: { soulSpace: string; vibe: string; engagementMode: EngagementMode },
   ): Promise<ReflectiveInsights> {
     try {
-      const prompt = `You are a deeply empathetic and insightful life coach. Analyze the following results from a "Soul Card Game" session and provide personalized, narrative feedback.
+      const config = ENGAGEMENT_MODE_CONFIG[context.engagementMode];
+      const metricsList = Object.entries(metrics)
+        .map(([key, value]) => `- ${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}/20`)
+        .join('\n');
+
+      const prompt = `You are a deeply empathetic and insightful ${config.guidanceLayer}. Analyze the following results from a "Soul Card Game" session and provide personalized, narrative feedback.
+Engagement Mode: ${context.engagementMode}
+Guidance Layer: ${config.guidanceLayer}
 
 SESSION CONTEXT:
 - Soul Space: ${context.soulSpace}
@@ -333,18 +251,15 @@ SESSION CONTEXT:
 
 AGGREGATE SCORES:
 - Overall Score: ${overallScore}/100
-- Reflective: ${metrics.reflective}/20
-- Coherence: ${metrics.coherence}/20
-- Openness: ${metrics.openness}/20
-- Authenticity: ${metrics.authenticity}/20
+${metricsList}
 
-Please generate exactly 5 fields. Use a tone that is encouraging, authentic, and growth-oriented.
+Please generate exactly 5 fields. Use a tone that is encouraging, authentic, and growth-oriented, reflecting your role as a ${config.guidanceLayer}.
 
 1. REFLECTIVE STRENGTHS:
-   Write 2-3 sentences about what the user did well. Acknowledge their participation as a major first step. Reference specific strong metrics (score > 15/20).
+   Write 2-3 sentences about what the user did well in this ${context.engagementMode} journey. Acknowledge their participation as a major first step. Reference specific strong metrics (score > 15/20).
 
 2. DEEPENING AWARENESS:
-   Identify one area for growth (the lowest score). Provide 2-3 sentences about how they can improve. Include 2-3 specific strategies (bullet points starting with →). Use the exact phrases like "To enhance your self-awareness, consider focusing on [Area Name]".
+   Identify one area for growth (the lowest score). Provide 2-3 sentences about how they can improve. Include 2-3 specific strategies (bullet points starting with →). Use the exact phrases like "To enhance your ${context.engagementMode === EngagementMode.LEARNING ? 'mastery' : 'self-awareness'}, consider focusing on [Area Name]".
 
 3. WHAT THIS MEANS:
    Provide a 1-2 sentence interpretation of their overall performance. Assign a "Growth Level" (e.g., Opening Awareness, Emerging Awareness, Deepening Awareness).
@@ -353,7 +268,7 @@ Please generate exactly 5 fields. Use a tone that is encouraging, authentic, and
    A single, powerful sentence recommending one thing they should do immediately to continue their journey.
 
 5. PERSONALIZED RECOMMENDATIONS:
-   Provide 3-5 specific, actionable bullet-point recommendations (starting with •).
+   Provide 3-5 specific, actionable bullet-point recommendations (starting with •) relevant to the ${context.engagementMode} mode.
 
 FORMAT YOUR RESPONSE EXACTLY AS:
 REFLECTIVE STRENGTHS: [Text]
@@ -370,15 +285,14 @@ PERSONALIZED RECOMMENDATIONS:
       return this.parseReflectiveInsights(response);
     } catch (error) {
       console.error('Error generating reflective insights:', error);
-      // Return a fallback object so the API doesn't fail
       return {
         reflectiveStrengths: 'You showed up and participated, which is the most important step!',
         deepeningAwareness: 'Every journey of self-discovery has areas to explore further.',
-        whatThisMeans: 'You are on a journey of self-awareness.',
+        whatThisMeans: 'You are on a journey of growth.',
         nextBestAction: 'Continue holding space for what arises.',
         personalizedRecommendations: [
-          'Practice daily self-reflection',
-          'Explore different soul spaces',
+          'Practice regular reflection',
+          'Explore different themes',
           'Be patient with your growth journey',
         ],
       };
@@ -413,7 +327,6 @@ PERSONALIZED RECOMMENDATIONS:
       } else if (line.startsWith('PERSONALIZED RECOMMENDATIONS:')) {
         currentSection = 'recommendations';
       } else {
-        // Content for current section
         if (currentSection === 'strengths') {
           reflectiveStrengths += ' ' + line;
         } else if (currentSection === 'awareness') {

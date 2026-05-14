@@ -40,6 +40,24 @@ export class UserAnswerService {
         throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
       }
 
+      if (session.status === SessionStatus.COMPLETED) {
+        throw new HttpException(
+          'This session has been fully completed and is no longer accepting answers',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Check if this specific user has completed
+      const participantInfo = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
+      if (participantInfo?.isCompleted) {
+        throw new HttpException(
+          'You have already completed your participation in this session',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       // Validate user is a participant
       const isParticipant = session.participants.some(
         (p) => p.toString() === userId,
@@ -79,6 +97,7 @@ export class UserAnswerService {
       const scoringResult = await this.scoringService.scoreAnswer(
         userAnswer,
         questionKey.modelAnswer,
+        session.engagementMode as any, // Cast to EngagementMode enum
       );
 
       // Create and save user answer record
@@ -115,6 +134,7 @@ export class UserAnswerService {
           displayName: 'Player', // Fallback
           answersSubmitted: 1,
           skippedQuestions: [],
+          isCompleted: false,
         });
       }
 
@@ -173,6 +193,24 @@ export class UserAnswerService {
         throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
       }
 
+      if (session.status === SessionStatus.COMPLETED) {
+        throw new HttpException(
+          'This session has been fully completed and is no longer accepting skips',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Check if this specific user has completed
+      const participantInfo = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
+      if (participantInfo?.isCompleted) {
+        throw new HttpException(
+          'You have already completed your participation in this session',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       // Validate user is a participant
       const isParticipant = session.participants.some(p => p.toString() === userId);
       if (!isParticipant) {
@@ -198,6 +236,7 @@ export class UserAnswerService {
           displayName: 'Player',
           answersSubmitted: 0,
           skippedQuestions: [questionNumber],
+          isCompleted: false,
         });
       } else {
         if (participant.skippedQuestions.includes(questionNumber)) {
@@ -300,7 +339,11 @@ export class UserAnswerService {
       const reflectiveInsights = await this.scoringService.generateReflectiveInsights(
         aggregateScores.overallScore,
         aggregateScores.metrics,
-        { soulSpace: session.soulSpace, vibe: session.vibe }
+        { 
+          soulSpace: session.soulSpace, 
+          vibe: session.vibe, 
+          engagementMode: session.engagementMode as any 
+        }
       );
 
       // Create and save SessionResult for history (per player)

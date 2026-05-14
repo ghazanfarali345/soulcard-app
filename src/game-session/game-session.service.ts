@@ -6,16 +6,15 @@ import { QuestionAnswerKey } from './entities/question-answer-key.entity';
 import { SessionDetailsDto } from './dto/session-details.dto';
 import { GeminiService } from '../gemini/gemini.service';
 import * as crypto from 'crypto';
+import {
+  EngagementMode,
+  ENGAGEMENT_MODE_CONFIG,
+} from './engagement-mode.config';
 
 interface QuestionData {
   question: string;
   modelAnswer: string;
-  scoring: {
-    depth: number;
-    coherence: number;
-    authenticity: number;
-    openness: number;
-  };
+  scoring: Record<string, number>;
   aiFeedback: string;
 }
 
@@ -37,7 +36,7 @@ export class GameSessionService {
       userId: userObjectId,
       hostId: userObjectId,
       participants: [userObjectId],
-      participantsInfo: [], // Host info will be added if they provide a displayName later, or we can add it now if we have it
+      participantsInfo: [],
       ...dto,
     });
     return await newSession.save();
@@ -49,9 +48,8 @@ export class GameSessionService {
       throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
     }
 
-    // Generate 12-char case-sensitive alphanumeric + symbols code
-    // Allowed chars: A-Z, a-z, 0-9, !, @, #, $, %, ^, &, *, (, ), -, _, +, =
-    const allowedChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_+=';
+    const allowedChars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_+=';
     let code = '';
     const bytes = crypto.randomBytes(12);
     for (let i = 0; i < 12; i++) {
@@ -73,52 +71,41 @@ export class GameSessionService {
     });
 
     if (!session) {
-      throw new HttpException('Invalid or expired join code', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Invalid or expired join code',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     return session;
   }
 
-  /**
-   * Generate questions based on session details
-   * @param sessionId - The session ID
-   * @returns Session with generated questions
-   */
   async generateQuestionsFromSession(sessionId: string): Promise<Session> {
     try {
-      // Fetch the session
       const session = await this.sessionModel.findById(sessionId);
       if (!session) {
         throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
       }
 
-      // Build a comprehensive prompt from session fields
       const prompt = this.buildPrompt(session);
-
-      // Generate questions using Gemini
       const generatedContent = await this.geminiService.generateContent(prompt);
 
-      // Log raw response for debugging
       console.log('Gemini API Response Length:', generatedContent.length);
-      console.log(
-        'Gemini Response Preview:',
-        generatedContent.substring(0, 500),
-      );
 
-      // Parse the generated content to extract questions with scoring
-      const fullQuestions = this.parseQuestionsWithScoring(generatedContent);
+      const fullQuestions = this.parseQuestionsWithScoring(
+        generatedContent,
+        session.engagementMode as EngagementMode,
+      );
 
       console.log('Parsed Questions Count:', fullQuestions.length);
 
       if (fullQuestions.length === 0) {
-        console.warn('Warning: No questions were parsed from Gemini response');
         throw new HttpException(
           'Failed to parse questions from AI response',
           HttpStatus.INTERNAL_SERVER_ERROR,
         );
       }
 
-      // Save full questions (with modelAnswer, scoring, feedback) to QuestionAnswerKey
       for (let i = 0; i < fullQuestions.length; i++) {
         const q = fullQuestions[i];
         await this.questionAnswerKeyModel.create({
@@ -130,7 +117,6 @@ export class GameSessionService {
         });
       }
 
-      // Store only simple questions (questionNumber, question) in session
       const simpleQuestions = fullQuestions.map((q, index) => ({
         questionNumber: index + 1,
         question: q.question,
@@ -153,12 +139,18 @@ export class GameSessionService {
     }
   }
 
-  /**
-   * Build a comprehensive prompt from session details for Gemini
-   * @param session - The session object
-   * @returns Formatted prompt string
-   */
   private buildPrompt(session: Session): string {
+    const mode = (session.engagementMode as EngagementMode) || EngagementMode.REFLECTIVE;
+    const config = ENGAGEMENT_MODE_CONFIG[mode];
+    
+    const scoringFormat = config.parameters
+      .map((p) => `${p.name}: [X]/10`)
+      .join(' | ');
+
+    const scoringRequirements = config.parameters
+      .map((p) => `- ${p.name}: ${p.description} (0-10)`)
+      .join('\n   ');
+
     return `You are an expert educational content creator. Generate exactly ${session.noOfQuestions} profound, thought-provoking questions for the Soul Card Game.
 
 SESSION PARAMETERS:
@@ -167,6 +159,7 @@ SESSION PARAMETERS:
 - Difficulty Level: ${session.difficultyLevel}
 - Engagement Mode: ${session.engagementMode}
 - Engagement Type: ${session.engagement}
+- Guidance Layer: ${config.guidanceLayer}
 
 For EACH question, provide in this EXACT format:
 
@@ -174,9 +167,9 @@ For EACH question, provide in this EXACT format:
 Q[number]:
 [THE QUESTION]
 MODEL ANSWER:
-[A comprehensive, authentic model answer that demonstrates depth and vulnerability. 3-5 sentences that show real insight]
+[A comprehensive, authentic model answer demonstration depth and vulnerability aligned with ${config.guidanceLayer} style. 3-5 sentences that show real insight]
 SCORING:
-Depth: [X]/10 | Coherence: [X]/10 | Authenticity: [X]/10 | Openness: [X]/10
+${scoringFormat}
 AI FEEDBACK:
 "[2-3 sentences of qualitative feedback on what makes this response strong, highlighting the most valuable insights]"
 ═══════════════════════════════════════
@@ -190,44 +183,35 @@ QUALITY REQUIREMENTS:
    - Relevant to "${session.soulSpace}" soul space
 
 2. Model answers should:
-   - Demonstrate genuine reflection
+   - Demonstrate genuine reflection and ${mode} goals
    - Show personal insight balanced with practical wisdom
    - Be authentic and vulnerable, not generic
    - Connect to the question meaningfully
 
-3. Scoring should:
-   - Depth: How much intellectual/emotional depth is shown (0-10)
-   - Coherence: How well organized and logical (0-10)
-   - Authenticity: How genuine and personal (0-10)
-   - Openness: How receptive and non-defensive (0-10)
+3. Scoring should follow these criteria for ${mode}:
+   ${scoringRequirements}
    - Range: Mostly 8-10, with variety
 
 4. AI Feedback should:
    - Highlight the strongest elements
-   - Show what makes the answer valuable
+   - Show what makes the answer valuable in the context of ${mode}
    - Be encouraging and specific
    - Reference exact phrases when possible
 
 Generate ${session.noOfQuestions} questions now. Ensure each follows the format exactly.`;
   }
 
-  /**
-   * Parse questions from generated content with scoring and feedback
-   * @param content - The generated content from Gemini
-   * @returns Array of parsed question objects with scoring
-   */
-  private parseQuestionsWithScoring(content: string): QuestionData[] {
+  private parseQuestionsWithScoring(
+    content: string,
+    mode: EngagementMode,
+  ): QuestionData[] {
     const questions: QuestionData[] = [];
-
-    // Try splitting by the separator first
     let blocks = content.split('═══════════════════════════════════════');
 
-    // If separator not found, try alternate separators
     if (blocks.length <= 1) {
-      console.log('Separator not found, trying alternate parsing...');
       blocks = content.split('Q');
       if (blocks.length > 1) {
-        blocks = blocks.slice(1).map((b) => 'Q' + b); // Re-add Q prefix
+        blocks = blocks.slice(1).map((b) => 'Q' + b);
       }
     }
 
@@ -235,12 +219,11 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
       if (!block.trim()) continue;
 
       try {
-        const questionData = this.parseQuestionBlock(block);
+        const questionData = this.parseQuestionBlock(block, mode);
         if (questionData) {
           questions.push(questionData);
         }
       } catch (error) {
-        // Log parsing error but continue with next question
         console.error('Error parsing question block:', error.message);
       }
     }
@@ -248,22 +231,16 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
     return questions;
   }
 
-  /**
-   * Parse individual question block
-   * @param block - A single question block
-   * @returns Parsed question data or null
-   */
-  private parseQuestionBlock(block: string): QuestionData | null {
+  private parseQuestionBlock(
+    block: string,
+    mode: EngagementMode,
+  ): QuestionData | null {
+    const config = ENGAGEMENT_MODE_CONFIG[mode];
     const lines = block.split('\n').map((line) => line.trim());
 
     let question = '';
     let modelAnswer = '';
-    let scoring = {
-      depth: 0,
-      coherence: 0,
-      authenticity: 0,
-      openness: 0,
-    };
+    const scoring: Record<string, number> = {};
     let aiFeedback = '';
 
     let currentSection = '';
@@ -283,28 +260,14 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
 
       if (line.includes('SCORING:')) {
         currentSection = 'scoring';
-        // Parse scoring line - try multiple patterns
-        let scoringMatch = line.match(
-          /Depth:\s*(\d+)\/10\s*\|\s*Coherence:\s*(\d+)\/10\s*\|\s*Authenticity:\s*(\d+)\/10\s*\|\s*Openness:\s*(\d+)\/10/,
-        );
-
-        // If first pattern fails, try alternate patterns
-        if (!scoringMatch) {
-          scoringMatch = line.match(
-            /Depth:\s*(\d+)\s*\|\s*Coherence:\s*(\d+)\s*\|\s*Authenticity:\s*(\d+)\s*\|\s*Openness:\s*(\d+)/,
-          );
-        }
-
-        if (scoringMatch) {
-          scoring = {
-            depth: parseInt(scoringMatch[1], 10),
-            coherence: parseInt(scoringMatch[2], 10),
-            authenticity: parseInt(scoringMatch[3], 10),
-            openness: parseInt(scoringMatch[4], 10),
-          };
-        } else {
-          console.log('Could not parse scoring from line:', line);
-        }
+        // Dynamic scoring parsing
+        config.parameters.forEach((p) => {
+          const regex = new RegExp(`${p.name}:\\s*(\\d+)`, 'i');
+          const match = line.match(regex);
+          if (match) {
+            scoring[p.name.toLowerCase()] = parseInt(match[1], 10);
+          }
+        });
         continue;
       }
 
@@ -313,7 +276,6 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
         continue;
       }
 
-      // Collect content for each section
       if (
         currentSection === 'question_header' &&
         line &&
@@ -326,42 +288,24 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
           question = line;
         }
       } else if (currentSection === 'model_answer' && line && line.length > 0) {
-        if (modelAnswer) {
-          modelAnswer += ' ' + line;
-        } else {
-          modelAnswer = line;
-        }
+        modelAnswer = modelAnswer ? modelAnswer + ' ' + line : line;
       } else if (currentSection === 'ai_feedback' && line && line.length > 0) {
-        // Remove quotes if present
         const cleanedLine = line.replace(/^["']|["']$/g, '');
-        if (aiFeedback) {
-          aiFeedback += ' ' + cleanedLine;
-        } else {
-          aiFeedback = cleanedLine;
-        }
+        aiFeedback = aiFeedback ? aiFeedback + ' ' + cleanedLine : cleanedLine;
       }
     }
 
-    // Validate that we have all required fields - be more lenient with scoring
     if (question && modelAnswer) {
-      // Set default scoring if not found
-      if (scoring.depth === 0) {
-        console.log(
-          'Warning: Using default scoring for question:',
-          question.substring(0, 50),
-        );
-        scoring = {
-          depth: 7,
-          coherence: 7,
-          authenticity: 7,
-          openness: 7,
-        };
-      }
+      // Set defaults for missing scoring
+      config.parameters.forEach((p) => {
+        const key = p.name.toLowerCase();
+        if (scoring[key] === undefined || scoring[key] === 0) {
+          scoring[key] = 7;
+        }
+      });
 
-      // Set default feedback if not found
       if (!aiFeedback) {
-        aiFeedback =
-          'This response shows thoughtful consideration of the topic.';
+        aiFeedback = 'This response shows thoughtful consideration of the topic.';
       }
 
       return {
@@ -372,12 +316,45 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
       };
     }
 
-    console.log(
-      'Block skipped - missing required fields. Q:',
-      !!question,
-      'MA:',
-      !!modelAnswer,
-    );
     return null;
+  }
+
+  async endSession(sessionId: string, userId: string): Promise<Session> {
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session) {
+      throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
+    }
+
+    // Find the participant in participantsInfo
+    const participantIndex = session.participantsInfo.findIndex(
+      (p) => p.userId.toString() === userId,
+    );
+
+    if (participantIndex === -1) {
+      // If not in participantsInfo (like a host who hasn't formally joined as a player yet)
+      session.participantsInfo.push({
+        userId: new Types.ObjectId(userId),
+        displayName: 'Player', // Fallback
+        answersSubmitted: await this.questionAnswerKeyModel.countDocuments({ sessionId: new Types.ObjectId(sessionId) }), // This count logic might need adjustment but usually we'd have them in info
+        skippedQuestions: [],
+        isCompleted: true,
+      });
+    } else {
+      if (session.participantsInfo[participantIndex].isCompleted) {
+        throw new HttpException(
+          'You have already completed this session',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      session.participantsInfo[participantIndex].isCompleted = true;
+    }
+
+    // Check if ALL participants have completed
+    const allCompleted = session.participantsInfo.every((p) => p.isCompleted);
+    if (allCompleted && session.participantsInfo.length > 0) {
+      session.status = SessionStatus.COMPLETED;
+    }
+
+    return await session.save();
   }
 }

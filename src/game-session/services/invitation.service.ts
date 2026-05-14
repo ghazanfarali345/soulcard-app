@@ -84,6 +84,7 @@ export class InvitationService {
         displayName,
         answersSubmitted: 0,
         skippedQuestions: [],
+        isCompleted: false,
       });
       await session.save();
     } else {
@@ -97,6 +98,7 @@ export class InvitationService {
           displayName,
           answersSubmitted: 0,
           skippedQuestions: [],
+          isCompleted: false,
         });
       }
       await session.save();

@@ -13,20 +13,10 @@ export class QuestionAnswerKey extends Document {
   modelAnswer: string;
 
   @Prop({
-    type: {
-      depth: Number,
-      coherence: Number,
-      authenticity: Number,
-      openness: Number,
-    },
+    type: Object, // Dynamic metrics like { depth: 10, coherence: 8, ... }
     required: true,
   })
-  scoring: {
-    depth: number;
-    coherence: number;
-    authenticity: number;
-    openness: number;
-  };
+  scoring: Record<string, number>;
 
   @Prop({ required: true })
   aiFeedback: string;
