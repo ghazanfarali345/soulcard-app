@@ -357,4 +357,12 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
 
     return await session.save();
   }
+
+  async getSessionById(sessionId: string): Promise<Session> {
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session) {
+      throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
+    }
+    return session;
+  }
 }

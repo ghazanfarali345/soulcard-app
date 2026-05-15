@@ -394,6 +394,36 @@ export class GameSessionController {
     };
   }
 
+  @Get(':sessionId')
+  @UseGuards(JwtGuard)
+  @ApiBearerAuth('access-token')
+  @ApiSecurity('access-token')
+  @ApiParam({
+    name: 'sessionId',
+    description: 'The ID of the session',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiOperation({
+    summary: 'Get Session Details',
+    description: 'Retrieve the configuration and current status of a specific game session.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Session details retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Session not found',
+  })
+  async getSessionDetail(@Param('sessionId') sessionId: string) {
+    const data = await this.gameSessionService.getSessionById(sessionId);
+    return {
+      success: true,
+      message: 'Session details retrieved successfully',
+      data,
+    };
+  }
+
   @Get(':sessionId/progress')
   @UseGuards(JwtGuard)
   @ApiBearerAuth('access-token')
