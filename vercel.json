@@ -2,7 +2,6 @@
   "version": 2,
   "functions": {
     "src/main.ts": {
-      "runtime": "@vercel/node",
       "includeFiles": "node_modules/swagger-ui-dist/**"
     }
   },
