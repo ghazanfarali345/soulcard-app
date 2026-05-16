@@ -13,7 +13,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import { extname } from 'path';
 import {
   ApiTags,
@@ -338,14 +338,7 @@ export class AuthController {
   @Patch('profile')
   @UseInterceptors(
     FileInterceptor('profileImage', {
-      storage: diskStorage({
-        destination: './uploads/profiles',
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
-        },
-      }),
+      storage: memoryStorage(),
       fileFilter: (req, file, cb) => {
         if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
           return cb(new BadRequestException('Only image files are allowed!'), false);
@@ -360,7 +353,14 @@ export class AuthController {
     @Body(ValidationPipe) editProfileDto: EditProfileDto,
     @UploadedFile() profileImage?: any,
   ) {
-    const imageUrl = profileImage ? `/uploads/profiles/${profileImage.filename}` : undefined;
+    // For now, we are just acknowledging the file upload since serverless doesn't have a persistent disk
+    // In a real production app, you would upload this buffer to Cloudinary or S3 here.
+    let imageUrl = undefined;
+    if (profileImage) {
+      // Mocking a URL for the uploaded image
+      imageUrl = `https://via.placeholder.com/150?text=${req.user.username}`;
+    }
+
     return this.authService.editProfile(req.user.userId, {
       ...editProfileDto,
       profileImage: imageUrl,

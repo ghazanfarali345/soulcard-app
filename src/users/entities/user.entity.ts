@@ -35,5 +35,4 @@ export class User {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Create indexes for performance
-UserSchema.index({ resetToken: 1 }, { sparse: true });
+// Indexes are handled by @Prop definitions
