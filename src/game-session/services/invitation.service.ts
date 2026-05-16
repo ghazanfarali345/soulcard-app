@@ -129,9 +129,16 @@ export class InvitationService {
           title,
           body,
           {
+            type: 'participant_joined',
             sessionId: session._id.toString(),
-            joiningUserId: userId,
-            displayName: displayName,
+            participantInfo: JSON.stringify({
+              userId: userId,
+              displayName: displayName,
+              answersSubmitted: 0,
+              skippedQuestions: [],
+              isCompleted: false,
+              profileImage: joiningUser?.profileImage || null,
+            }),
           }
         );
       }
