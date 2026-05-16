@@ -32,6 +32,7 @@ import {
   ChangePasswordDto,
   DeleteAccountDto,
   VerifyEmailDto,
+  ResendOtpDto,
 } from './dto';
 import { RefreshTokenDto } from './dto/auth-response.dto';
 import { JwtGuard } from './guards/jwt.guard';
@@ -168,6 +169,28 @@ export class AuthController {
   @Post('verify-email')
   async verifyEmail(@Body(ValidationPipe) verifyEmailDto: VerifyEmailDto) {
     return this.authService.verifyEmail(verifyEmailDto);
+  }
+
+  /**
+   * POST /auth/resend-otp
+   * Resend verification code
+   */
+  @ApiOperation({
+    summary: 'Resend verification code',
+    description: 'Resend a new 6-digit verification code to the user email.',
+  })
+  @ApiBody({ type: ResendOtpDto })
+  @ApiResponse({
+    status: 200,
+    description: 'New verification code sent successfully.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No pending registration found or expired',
+  })
+  @Post('resend-otp')
+  async resendOtp(@Body(ValidationPipe) resendOtpDto: ResendOtpDto) {
+    return this.authService.resendOtp(resendOtpDto);
   }
 
   /**

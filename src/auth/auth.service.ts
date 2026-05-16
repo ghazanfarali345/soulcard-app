@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { LoginDto, SignupDto, ForgotPasswordDto, VerifyEmailDto } from './dto';
+import { LoginDto, SignupDto, ForgotPasswordDto, VerifyEmailDto, ResendOtpDto } from './dto';
 import { RefreshTokenDto, JwtPayload } from './dto/auth-response.dto';
 import { EditProfileDto } from './dto/edit-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -241,6 +241,42 @@ export class AuthService {
         refreshToken,
         expiresIn: 3600,
       },
+    };
+  }
+
+  /**
+   * Resend Verification OTP
+   */
+  async resendOtp(resendOtpDto: ResendOtpDto) {
+    const { email } = resendOtpDto;
+
+    const pendingUser = await this.pendingUserModel.findOne({ email });
+
+    if (!pendingUser) {
+      throw new BadRequestException(
+        'No pending registration found or it has expired. Please sign up again.',
+      );
+    }
+
+    // Generate new 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60000); // 10 minutes
+
+    // Update pending user
+    pendingUser.otp = otp;
+    pendingUser.otpExpiresAt = otpExpiresAt;
+    await pendingUser.save();
+
+    // Send email
+    await this.emailService.sendEmail(
+      email,
+      'Your New Verification Code',
+      `<p>Your new verification code is: <strong>${otp}</strong></p><p>This code will expire in 10 minutes.</p>`,
+    );
+
+    return {
+      success: true,
+      message: 'New verification code has been sent to your email',
     };
   }
 
