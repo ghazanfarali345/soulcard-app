@@ -36,6 +36,4 @@ export class User {
 export const UserSchema = SchemaFactory.createForClass(User);
 
 // Create indexes for performance
-UserSchema.index({ email: 1 }, { unique: true });
-UserSchema.index({ username: 1 }, { unique: true });
-UserSchema.index({ resetToken: 1 });
+UserSchema.index({ resetToken: 1 }, { sparse: true });

@@ -92,9 +92,6 @@ export class SessionResult extends Document {
 
   @Prop({ default: Date.now })
   completedAt: Date;
-
-  @Prop({ default: Date.now })
-  createdAt: Date;
 }
 
 export const SessionResultSchema = SchemaFactory.createForClass(SessionResult);
