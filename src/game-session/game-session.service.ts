@@ -10,6 +10,7 @@ import {
   EngagementMode,
   ENGAGEMENT_MODE_CONFIG,
 } from './engagement-mode.config';
+import { UsersService } from '../users/users.service';
 
 interface QuestionData {
   question: string;
@@ -48,6 +49,7 @@ export class GameSessionService {
     @InjectModel(QuestionAnswerKey.name)
     private questionAnswerKeyModel: Model<QuestionAnswerKey>,
     private geminiService: GeminiService,
+    private usersService: UsersService,
   ) {}
 
   async createSessionDetails(
@@ -55,11 +57,21 @@ export class GameSessionService {
     dto: SessionDetailsDto,
   ): Promise<Session> {
     const userObjectId = new Types.ObjectId(userId);
+    const user = await this.usersService.findById(userId);
+    
     const newSession = new this.sessionModel({
       userId: userObjectId,
       hostId: userObjectId,
       participants: [userObjectId],
-      participantsInfo: [],
+      participantsInfo: [
+        {
+          userId: userObjectId,
+          displayName: user?.username || user?.fullName || 'Host',
+          answersSubmitted: 0,
+          skippedQuestions: [],
+          isCompleted: false,
+        },
+      ],
       ...dto,
     });
     return await newSession.save();

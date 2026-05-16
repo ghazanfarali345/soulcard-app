@@ -21,6 +21,7 @@ import { ScoringService } from './services/scoring.service';
 import { InvitationService } from './services/invitation.service';
 import { TwilioService } from './services/twilio.service';
 import { GeminiModule } from '../gemini/gemini.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { GeminiModule } from '../gemini/gemini.module';
       { name: SessionResult.name, schema: SessionResultSchema },
     ]),
     GeminiModule,
+    UsersModule,
   ],
   controllers: [GameSessionController],
   providers: [
