@@ -547,13 +547,10 @@ export class GameSessionController {
     @Req() req: any,
   ) {
     const userId = req.user?.userId;
-    const data = await this.userAnswerService.calculateFinalResults(
-      sessionId,
-      userId,
-    );
+    const data = await this.userAnswerService.getSessionFinalResults(sessionId, userId);
     return {
       success: true,
-      message: 'Results calculated successfully',
+      message: 'All participant results retrieved successfully',
       data,
     };
   }

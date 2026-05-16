@@ -9,7 +9,8 @@ export interface ScoringResult {
   similarityScore: number; // 0-100
   metrics: Record<string, number>; // Dynamic metrics based on engagement mode
   constructiveFeedback: string; // Encouraging feedback to prompt deeper reflection
-  guidedInsight: string; // Personalized feedback on the answer
+  guidedInsight?: string; // Optional: Personalized feedback on the answer
+  spiritSuggestion?: string; // Optional: Suggestions to improve or expand answer
 }
 
 export interface ReflectiveInsights {
@@ -28,6 +29,7 @@ export class ScoringService {
     userAnswer: string,
     modelAnswer: string,
     engagementMode: EngagementMode = EngagementMode.REFLECTIVE,
+    engagementType: string = 'guided',
   ): Promise<ScoringResult> {
     try {
       if (!userAnswer || !modelAnswer) {
@@ -41,10 +43,11 @@ export class ScoringService {
         userAnswer,
         modelAnswer,
         engagementMode,
+        engagementType,
       );
       const scoringResponse =
         await this.geminiService.generateContent(scoringPrompt);
-      const result = this.parseScoringResponse(scoringResponse, engagementMode);
+      const result = this.parseScoringResponse(scoringResponse, engagementMode, engagementType);
 
       return result;
     } catch (error) {
@@ -62,6 +65,7 @@ export class ScoringService {
     userAnswer: string,
     modelAnswer: string,
     engagementMode: EngagementMode,
+    engagementType: string,
   ): string {
     const config = ENGAGEMENT_MODE_CONFIG[engagementMode];
     const parametersPrompt = config.parameters
@@ -101,16 +105,23 @@ Please provide:
    If the answer seems brief or lacking depth, prompt deeper reflection aligned with ${engagementMode} goals.
    Return as: Constructive Feedback: [Your feedback text]
 
-4. GUIDED INSIGHT (1-2 sentences):
-   Provide personalized, deeper feedback that helps the user understand their answer better.
-   Focus on what they did well and one area for deeper reflection or growth.
-   Return as: Guided Insight: [Your insight text]
+${
+  engagementType === 'spirit'
+    ? `4. SPIRIT SUGGESTION (1-2 sentences):
+   Provide a supportive suggestion on how the user can improve, expand, or deepen their answer. 
+   Focus on helping them grow their response to be more meaningful.
+   Return as: Spirit Suggestion: [Your suggestion text]`
+    : `4. GUIDED INSIGHT (1-2 sentences):
+   Provide personalized, deeper feedback that helps the user understand their answer better. 
+   Reflect on the idea of the question and help them see what a complete or meaningful answer looks like.
+   Return as: Guided Insight: [Your insight text]`
+}
 
 FORMAT YOUR RESPONSE EXACTLY AS:
 Similarity Score: [NUMBER]
 ${formatPrompt}
 Constructive Feedback: [Your feedback text]
-Guided Insight: [Your insight text]
+${engagementType === 'spirit' ? 'Spirit Suggestion: [Your suggestion text]' : 'Guided Insight: [Your insight text]'}
 
 Remember: Be fair but honest. Similarity can be high even if slightly different wording. Score the metrics based on the definitions provided above for the ${engagementMode} mode.`;
   }
@@ -118,6 +129,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
   private parseScoringResponse(
     response: string,
     engagementMode: EngagementMode,
+    engagementType: string,
   ): ScoringResult {
     try {
       const config = ENGAGEMENT_MODE_CONFIG[engagementMode];
@@ -173,6 +185,25 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
             guidedInsight = match[1].trim();
           }
         }
+
+        // Parse Spirit Suggestion
+        if (trimmedLine.toLowerCase().includes('spirit suggestion')) {
+          const match = trimmedLine.match(/spirit suggestion:\s*(.+)/i);
+          if (match && match[1]) {
+            const spiritSuggestion = match[1].trim();
+            // We'll return this as a separate field or reuse the insight field
+            // But for clarity let's use a local variable to collect it
+          }
+        }
+      }
+
+      // Re-run for Spirit Suggestion to ensure it's captured
+      let spiritSuggestion: string | null = null;
+      for (const line of lines) {
+        if (line.toLowerCase().includes('spirit suggestion')) {
+          const match = line.match(/spirit suggestion:\s*(.+)/i);
+          if (match && match[1]) spiritSuggestion = match[1].trim();
+        }
       }
 
       // Defaults if not found
@@ -187,15 +218,21 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
         constructiveFeedback = 'Try to elaborate further — sharing a specific example or memory could make your answer even more meaningful.';
       }
 
-      if (!guidedInsight) {
+      if (!guidedInsight && engagementType !== 'spirit') {
         guidedInsight = 'Your response shows your perspective. Consider exploring the model answer to deepen your understanding of this question.';
+      }
+
+      if (!spiritSuggestion && engagementType === 'spirit') {
+        spiritSuggestion = 'Consider expanding on your thoughts — what feelings or memories does this question evoke for you?';
       }
 
       return {
         similarityScore,
         metrics,
         constructiveFeedback,
-        guidedInsight,
+        ...(engagementType === 'spirit' 
+          ? { spiritSuggestion: spiritSuggestion || undefined } 
+          : { guidedInsight: guidedInsight || undefined }),
       };
     } catch (error) {
       console.error('Scoring parse error:', error);

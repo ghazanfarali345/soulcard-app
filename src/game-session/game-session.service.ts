@@ -18,6 +18,29 @@ interface QuestionData {
   aiFeedback: string;
 }
 
+const DIFFICULTY_DEFINITIONS = {
+  SEEKER: {
+    description: 'Simple, thoughtful, easy reflection',
+    level: 'Upper Elementary Level (Grade 4–5)',
+    goal: 'Simple thoughtful reflection',
+  },
+  SCHOLAR: {
+    description: 'Clear analytical thinking with simple depth',
+    level: 'Middle School Level (Grade 6–8)',
+    goal: 'Clear analytical thinking',
+  },
+  SAGE: {
+    description: 'Advanced philosophical and abstract reasoning',
+    level: 'College / Adult Level Postsecondary',
+    goal: 'Advanced philosophical exploration',
+  },
+  LUMINARY: {
+    description: 'Mature reasoning, deeper reflection, and stronger intellectual discussion',
+    level: 'High School Level (Grade 9–12)',
+    goal: 'Mature intellectual reflection',
+  },
+};
+
 @Injectable()
 export class GameSessionService {
   constructor(
@@ -151,12 +174,17 @@ export class GameSessionService {
       .map((p) => `- ${p.name}: ${p.description} (0-10)`)
       .join('\n   ');
 
+    const difficulty = (session.difficultyLevel?.toUpperCase() || 'SEEKER') as keyof typeof DIFFICULTY_DEFINITIONS;
+    const diffDef = DIFFICULTY_DEFINITIONS[difficulty] || DIFFICULTY_DEFINITIONS.SEEKER;
+
     return `You are an expert educational content creator. Generate exactly ${session.noOfQuestions} profound, thought-provoking questions for the Soul Card Game.
 
 SESSION PARAMETERS:
 - Soul Space: ${session.soulSpace}
 - Vibe/Domain: ${session.vibe}
-- Difficulty Level: ${session.difficultyLevel}
+- Difficulty Level: ${session.difficultyLevel} (${diffDef.goal})
+- Intellectual Depth: ${diffDef.level}
+- Target Tone: ${diffDef.description}
 - Engagement Mode: ${session.engagementMode}
 - Engagement Type: ${session.engagement}
 - Guidance Layer: ${config.guidanceLayer}
@@ -177,7 +205,7 @@ AI FEEDBACK:
 QUALITY REQUIREMENTS:
 1. Each question should be:
    - Thought-provoking and open-ended
-   - Appropriate for ${session.difficultyLevel} difficulty
+   - Appropriate for ${session.difficultyLevel} difficulty (${diffDef.level}: ${diffDef.description})
    - Suitable for the "${session.vibe}" domain/theme
    - Encouraging ${session.engagement} engagement
    - Relevant to "${session.soulSpace}" soul space

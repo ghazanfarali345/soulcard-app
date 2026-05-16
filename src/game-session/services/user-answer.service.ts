@@ -1,4 +1,4 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { UserAnswer, PerQuestionScore } from '../entities/user-answer.entity';
@@ -9,6 +9,7 @@ import { ScoringService, ScoringResult } from './scoring.service';
 
 @Injectable()
 export class UserAnswerService {
+  private readonly logger = new Logger(UserAnswerService.name);
   constructor(
     @InjectModel(UserAnswer.name) private userAnswerModel: Model<UserAnswer>,
     @InjectModel(Session.name) private sessionModel: Model<Session>,
@@ -98,6 +99,7 @@ export class UserAnswerService {
         userAnswer,
         questionKey.modelAnswer,
         session.engagementMode as any, // Cast to EngagementMode enum
+        session.engagement, // e.g. 'guided' or 'spirit'
       );
 
       // Create and save user answer record
@@ -453,6 +455,87 @@ export class UserAnswerService {
       }
       throw new HttpException(
         `Error getting progress: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Get final results for all participants in a session
+   * @param sessionId - Session ID
+   * @param userId - Optional User ID to trigger calculation for the requester
+   * @returns Array of final results for all participants
+   */
+  async getSessionFinalResults(sessionId: string, userId?: string) {
+    try {
+      const session = await this.sessionModel.findById(sessionId);
+      if (!session) {
+        throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
+      }
+
+      // If userId is provided, check if we need to calculate results for this user
+      if (userId) {
+        const existingResult = await this.sessionResultModel.findOne({
+          sessionId: new Types.ObjectId(sessionId),
+          userId: new Types.ObjectId(userId),
+        });
+
+        if (!existingResult) {
+          const participant = session.participantsInfo.find(p => p.userId.toString() === userId);
+          const answersCount = await this.userAnswerModel.countDocuments({
+            sessionId: new Types.ObjectId(sessionId),
+            playerId: new Types.ObjectId(userId),
+          });
+
+          const totalResponded = answersCount + (participant?.skippedQuestions.length || 0);
+          
+          // If they have responded to all questions, calculate now
+          if (totalResponded >= session.noOfQuestions && answersCount > 0) {
+            try {
+              await this.calculateFinalResults(sessionId, userId);
+            } catch (err) {
+              this.logger.error(`Auto-calculation failed for user ${userId}: ${err.message}`);
+            }
+          }
+        }
+      }
+
+      // Find all session results for this session
+      const results = await this.sessionResultModel.find({
+        sessionId: new Types.ObjectId(sessionId),
+      }).sort({ completedAt: 1 });
+
+      // If no results found yet, we might need to check if participants are done but haven't calculated
+      if (results.length === 0) {
+        // Return participant progress instead or an empty list
+        return {
+          sessionId,
+          status: session.status,
+          results: [],
+          message: 'No final results calculated yet. Participants may still be playing.',
+        };
+      }
+
+      // Return combined results
+      return {
+        sessionId,
+        soulSpace: session.soulSpace,
+        vibe: session.vibe,
+        totalParticipants: session.participants.length,
+        results: results.map(r => ({
+          userId: r.userId,
+          finalResults: r.finalResults,
+          reflectiveInsights: r.reflectiveInsights,
+          answersSubmitted: r.answersSubmitted,
+          completedAt: r.completedAt,
+        })),
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        `Error fetching session final results: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
