@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as twilio from 'twilio';
+import { Twilio } from 'twilio';
 import * as sgMail from '@sendgrid/mail';
 
 @Injectable()
 export class TwilioService {
   private readonly logger = new Logger(TwilioService.name);
-  private smsClient: twilio.Twilio;
+  private smsClient: Twilio;
 
   constructor() {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -13,7 +13,7 @@ export class TwilioService {
     const sendGridApiKey = process.env.SENDGRID_API_KEY;
 
     if (accountSid && accountSid.startsWith('AC') && authToken) {
-      this.smsClient = twilio(accountSid, authToken);
+      this.smsClient = new Twilio(accountSid, authToken);
     } else {
       this.logger.warn(
         'Twilio SMS credentials missing or invalid (must start with AC). SMS will not be sent.',
