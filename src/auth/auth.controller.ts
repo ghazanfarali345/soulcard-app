@@ -37,10 +37,15 @@ import {
 import { RefreshTokenDto } from './dto/auth-response.dto';
 import { JwtGuard } from './guards/jwt.guard';
 
+import { SupabaseService } from '../common/services/supabase.service';
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   /**
    * POST /auth/login
@@ -336,6 +341,9 @@ export class AuthController {
   @UseInterceptors(
     FileInterceptor('profileImage', {
       storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+      },
       fileFilter: (req, file, cb) => {
         if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
           return cb(new BadRequestException('Only image files are allowed!'), false);
@@ -350,12 +358,18 @@ export class AuthController {
     @Body(ValidationPipe) editProfileDto: EditProfileDto,
     @UploadedFile() profileImage?: any,
   ) {
-    // For now, we are just acknowledging the file upload since serverless doesn't have a persistent disk
-    // In a real production app, you would upload this buffer to Cloudinary or S3 here.
+    console.log('DEBUG: editProfile called for user:', req.user.userId);
+    console.log('DEBUG: profileImage present:', !!profileImage);
     let imageUrl: string | undefined = undefined;
+    
     if (profileImage) {
-      // Using a better looking initial-based avatar service
-      imageUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(req.user.username)}&background=random&color=fff&size=150`;
+      try {
+        // Upload to the configured Supabase bucket
+        const bucket = process.env.SUPABASE_BUCKET || 'profiles';
+        imageUrl = await this.supabaseService.uploadImage(profileImage, bucket);
+      } catch (error) {
+        throw new BadRequestException(`Failed to upload image to Supabase: ${error.message}`);
+      }
     }
 
     return this.authService.editProfile(req.user.userId, {

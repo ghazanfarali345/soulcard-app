@@ -8,6 +8,7 @@ import { JwtGuard } from './guards/jwt.guard';
 import { UsersModule } from '../users/users.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PendingUser, PendingUserSchema } from './entities/pending-user.entity';
+import { SupabaseService } from '../common/services/supabase.service';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { PendingUser, PendingUserSchema } from './entities/pending-user.entity';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtGuard],
+  providers: [AuthService, JwtStrategy, JwtGuard, SupabaseService],
   exports: [AuthService, JwtGuard],
 })
 export class AuthModule {}
