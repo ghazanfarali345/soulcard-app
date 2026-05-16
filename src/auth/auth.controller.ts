@@ -286,10 +286,7 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @Get('me')
   async getMe(@Request() req) {
-    return {
-      success: true,
-      data: req.user,
-    };
+    return this.authService.getMe(req.user.userId);
   }
 
   /**
@@ -355,10 +352,10 @@ export class AuthController {
   ) {
     // For now, we are just acknowledging the file upload since serverless doesn't have a persistent disk
     // In a real production app, you would upload this buffer to Cloudinary or S3 here.
-    let imageUrl = undefined;
+    let imageUrl: string | undefined = undefined;
     if (profileImage) {
-      // Mocking a URL for the uploaded image
-      imageUrl = `https://via.placeholder.com/150?text=${req.user.username}`;
+      // Using a better looking initial-based avatar service
+      imageUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(req.user.username)}&background=random&color=fff&size=150`;
     }
 
     return this.authService.editProfile(req.user.userId, {

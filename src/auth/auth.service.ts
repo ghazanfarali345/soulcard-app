@@ -281,6 +281,28 @@ export class AuthService {
   }
 
   /**
+   * Get Current User Profile
+   */
+  async getMe(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      success: true,
+      data: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        profileImage: user.profileImage,
+        createdAt: (user as any).createdAt,
+      },
+    };
+  }
+
+  /**
    * Refresh Access Token
    * Takes a refresh token and returns a new access token
    */
@@ -383,6 +405,7 @@ export class AuthService {
             username: updatedUser.username,
             email: updatedUser.email,
             fullName: updatedUser.fullName,
+            profileImage: updatedUser.profileImage,
           },
         },
       };

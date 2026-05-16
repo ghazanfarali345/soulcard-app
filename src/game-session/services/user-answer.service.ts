@@ -500,30 +500,56 @@ export class UserAnswerService {
         }
       }
 
+      // Check if all participants have completed the session
+      const allParticipants = session.participantsInfo || [];
+      const totalParticipants = session.participants.length;
+      const completedParticipants = allParticipants.filter(p => p.isCompleted);
+      
+      const isEveryoneDone = completedParticipants.length >= totalParticipants && totalParticipants > 0;
+
       // Find all session results for this session
       const results = await this.sessionResultModel.find({
         sessionId: new Types.ObjectId(sessionId),
       }).sort({ completedAt: 1 });
 
-      // If no results found yet, we might need to check if participants are done but haven't calculated
-      if (results.length === 0) {
-        // Return participant progress instead or an empty list
+      if (!isEveryoneDone) {
         return {
           sessionId,
-          status: session.status,
-          results: [],
-          message: 'No final results calculated yet. Participants may still be playing.',
+          status: 'WAITING',
+          message: 'Some participants are still completing their sessions.',
+          totalParticipants,
+          completedCount: completedParticipants.length,
+          participantsProgress: allParticipants.map(p => ({
+            userId: p.userId,
+            displayName: p.displayName || 'Player',
+            isCompleted: p.isCompleted,
+            answersSubmitted: p.answersSubmitted,
+            skippedQuestionsCount: p.skippedQuestions?.length || 0,
+            totalResponded: p.answersSubmitted + (p.skippedQuestions?.length || 0),
+          })),
         };
       }
 
-      // Return combined results
+      // If no results found yet but everyone is supposedly done, it might be a calculation delay
+      if (results.length === 0) {
+        return {
+          sessionId,
+          status: 'CALCULATING',
+          message: 'All participants have finished. AI insights are being calculated. Please refresh in a moment.',
+          totalParticipants,
+        };
+      }
+
+      // Return combined results for a completed session
       return {
         sessionId,
+        status: 'COMPLETED',
         soulSpace: session.soulSpace,
         vibe: session.vibe,
-        totalParticipants: session.participants.length,
+        totalParticipants,
         results: results.map(r => ({
           userId: r.userId,
+          displayName: allParticipants.find(p => p.userId.toString() === r.userId.toString())?.displayName || 'Player',
           finalResults: r.finalResults,
           reflectiveInsights: r.reflectiveInsights,
           answersSubmitted: r.answersSubmitted,
