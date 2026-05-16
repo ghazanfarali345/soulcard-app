@@ -36,4 +36,13 @@ export class EditProfileDto {
   @IsString()
   @IsOptional()
   fullName?: string;
+
+  @ApiProperty({
+    description: 'Profile image file',
+    type: 'string',
+    format: 'binary',
+    required: false,
+  })
+  @IsOptional()
+  profileImage?: any;
 }

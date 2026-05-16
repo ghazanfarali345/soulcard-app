@@ -19,6 +19,7 @@ import { GeminiService } from './gemini.service';
 import { GenerateContentDto, ChatDto } from './dto';
 
 @ApiTags('AI - Gemini')
+@ApiBearerAuth('access-token')
 @Controller('gemini')
 export class GeminiController {
   constructor(private readonly geminiService: GeminiService) {}
@@ -29,7 +30,6 @@ export class GeminiController {
    */
   @Post('generate')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiOperation({
     summary: 'Generate Content with Gemini AI',
@@ -86,7 +86,6 @@ export class GeminiController {
    */
   @Post('chat')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiOperation({
     summary: 'Chat with Gemini AI',

@@ -35,6 +35,7 @@ import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { JoinSessionDto } from './dto/join-session.dto';
 
 @ApiTags('Game Sessions')
+@ApiBearerAuth('access-token')
 @Controller('game-sessions')
 export class GameSessionController {
   constructor(
@@ -45,7 +46,6 @@ export class GameSessionController {
 
   @Post('sessionDetails')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiOperation({
     summary: 'Collect Session Details',
@@ -103,7 +103,6 @@ export class GameSessionController {
   @Post(':sessionId/invite')
   @UseGuards(JwtGuard, ThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiParam({
     name: 'sessionId',
@@ -131,7 +130,6 @@ export class GameSessionController {
       success: true,
       message: 'Invitation sent successfully',
       data: {
-        code: invitation.code,
         expiresAt: invitation.expiresAt,
       },
     };
@@ -139,7 +137,6 @@ export class GameSessionController {
 
   @Post('join')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiOperation({
     summary: 'Join Session with OTP',
@@ -167,7 +164,6 @@ export class GameSessionController {
 
   @Post(':sessionId/generate-questions')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiParam({
     name: 'sessionId',
@@ -234,7 +230,6 @@ export class GameSessionController {
 
   @Post(':sessionId/questions/:questionId/answer')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiParam({
     name: 'sessionId',
@@ -321,7 +316,6 @@ export class GameSessionController {
 
   @Post(':sessionId/questions/:questionId/skip')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiParam({
     name: 'sessionId',
@@ -396,7 +390,6 @@ export class GameSessionController {
 
   @Get(':sessionId')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiParam({
     name: 'sessionId',
@@ -426,7 +419,6 @@ export class GameSessionController {
 
   @Get(':sessionId/progress')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiParam({
     name: 'sessionId',
@@ -475,7 +467,6 @@ export class GameSessionController {
 
   @Get(':sessionId/final-results')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiParam({
     name: 'sessionId',
@@ -568,7 +559,6 @@ export class GameSessionController {
   }
   @Post(':sessionId/end')
   @UseGuards(JwtGuard)
-  @ApiBearerAuth('access-token')
   @ApiSecurity('access-token')
   @ApiParam({
     name: 'sessionId',

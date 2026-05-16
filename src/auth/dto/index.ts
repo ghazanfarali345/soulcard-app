@@ -5,3 +5,4 @@ export * from './auth-response.dto';
 export * from './edit-profile.dto';
 export * from './change-password.dto';
 export * from './delete-account.dto';
+export * from './verify-email.dto';

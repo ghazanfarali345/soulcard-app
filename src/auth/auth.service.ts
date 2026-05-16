@@ -7,18 +7,25 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { LoginDto, SignupDto, ForgotPasswordDto } from './dto';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { LoginDto, SignupDto, ForgotPasswordDto, VerifyEmailDto } from './dto';
 import { RefreshTokenDto, JwtPayload } from './dto/auth-response.dto';
 import { EditProfileDto } from './dto/edit-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UsersService } from '../users/users.service';
+import { PendingUser, PendingUserDocument } from './entities/pending-user.entity';
+import { NodemailerService } from '../email/nodemailer.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    @InjectModel(PendingUser.name)
+    private readonly pendingUserModel: Model<PendingUserDocument>,
+    private readonly emailService: NodemailerService,
   ) {}
 
   /**
@@ -135,45 +142,106 @@ export class AuthService {
       throw new BadRequestException('You must accept the terms and conditions');
     }
 
+    // Check if user already exists
+    const existingUser = await this.usersService.findByEmail(email);
+    if (existingUser) {
+      throw new ConflictException('Email already registered');
+    }
+
+    const existingUsername = await this.usersService.findByUsername(username);
+    if (existingUsername) {
+      throw new ConflictException('Username already taken');
+    }
+
     // Hash password
     const hashedPassword = await this.hashPassword(password);
 
-    // Create user via UsersService (handles uniqueness checks)
-    try {
-      const newUser = await this.usersService.createUser({
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60000); // 10 minutes
+
+    // Store in PendingUser
+    await this.pendingUserModel.findOneAndUpdate(
+      { email },
+      {
         username,
         email,
         password: hashedPassword,
+        otp,
+        otpExpiresAt,
         termsAccepted,
-      });
+      },
+      { upsert: true, new: true },
+    );
 
-      // Generate tokens
-      const { accessToken, refreshToken } = await this.generateTokens(
-        newUser._id.toString(),
-        newUser.email,
-        newUser.username,
-      );
+    // Mock email sending
+    console.log(`Verification code for ${email}: ${otp}`);
+    
+    // Send actual email via Gmail SMTP
+    await this.emailService.sendEmail(
+      email,
+      'Verify your Soul Card account',
+      `<p>Your verification code is: <strong>${otp}</strong></p><p>This code will expire in 10 minutes.</p>`,
+    );
 
-      return {
-        success: true,
-        message: 'Account created successfully',
-        data: {
-          user: {
-            id: newUser._id,
-            username: newUser.username,
-            email: newUser.email,
-          },
-          accessToken,
-          refreshToken,
-          expiresIn: 3600, // 1 hour in seconds
-        },
-      };
-    } catch (error) {
-      if (error instanceof ConflictException) {
-        throw error;
-      }
-      throw new BadRequestException('Failed to create account');
+    return {
+      success: true,
+      message: 'Verification code has been sent to your email',
+    };
+  }
+
+  /**
+   * Verify Email and Create Account
+   */
+  async verifyEmail(verifyEmailDto: VerifyEmailDto) {
+    const { email, code } = verifyEmailDto;
+
+    const pendingUser = await this.pendingUserModel.findOne({ email });
+
+    if (!pendingUser) {
+      throw new BadRequestException('No pending registration found for this email');
     }
+
+    if (pendingUser.otp !== code) {
+      throw new BadRequestException('Invalid verification code');
+    }
+
+    if (new Date() > pendingUser.otpExpiresAt) {
+      throw new BadRequestException('Verification code has expired');
+    }
+
+    // Create the actual user
+    const newUser = await this.usersService.createUser({
+      username: pendingUser.username,
+      email: pendingUser.email,
+      password: pendingUser.password,
+      termsAccepted: pendingUser.termsAccepted,
+    });
+
+    // Delete pending registration
+    await this.pendingUserModel.deleteOne({ email });
+
+    // Generate tokens
+    const { accessToken, refreshToken } = await this.generateTokens(
+      newUser._id.toString(),
+      newUser.email,
+      newUser.username,
+    );
+
+    return {
+      success: true,
+      message: 'Email verified and account created successfully',
+      data: {
+        user: {
+          id: newUser._id,
+          username: newUser.username,
+          email: newUser.email,
+        },
+        accessToken,
+        refreshToken,
+        expiresIn: 3600,
+      },
+    };
   }
 
   /**

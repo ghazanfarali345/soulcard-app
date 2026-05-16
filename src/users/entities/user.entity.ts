@@ -28,6 +28,9 @@ export class User {
 
   @Prop({ type: String, default: null, sparse: true })
   fullName?: string | null;
+
+  @Prop({ type: String, default: null })
+  profileImage?: string | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

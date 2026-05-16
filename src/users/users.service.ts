@@ -181,7 +181,7 @@ export class UsersService {
    */
   async updateProfile(
     userId: string,
-    updateData: { username?: string; email?: string; fullName?: string },
+    updateData: { username?: string; email?: string; fullName?: string; profileImage?: string },
   ): Promise<UserDocument> {
     const user = await this.findById(userId);
 
@@ -218,6 +218,11 @@ export class UsersService {
     // Update fullName if provided
     if (updateData.fullName !== undefined) {
       user.fullName = updateData.fullName || null;
+    }
+
+    // Update profileImage if provided
+    if (updateData.profileImage !== undefined) {
+      user.profileImage = updateData.profileImage || null;
     }
 
     return user.save();

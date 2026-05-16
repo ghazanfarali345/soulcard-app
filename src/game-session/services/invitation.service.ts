@@ -5,6 +5,7 @@ import { Invitation } from '../entities/invitation.entity';
 import { Session } from '../entities/session.entity';
 import { GameSessionService } from '../game-session.service';
 import { TwilioService } from './twilio.service';
+import { NodemailerService } from '../../email/nodemailer.service';
 
 @Injectable()
 export class InvitationService {
@@ -13,6 +14,7 @@ export class InvitationService {
     @InjectModel(Session.name) private sessionModel: Model<Session>,
     private gameSessionService: GameSessionService,
     private twilioService: TwilioService,
+    private emailService: NodemailerService,
   ) {}
 
   async createInvitation(
@@ -57,7 +59,7 @@ export class InvitationService {
     if (email) {
       const subject = 'Soul Card Session Invitation';
       const html = `<p>You are invited to join a Soul Card session.</p><p>Use code <strong>${code}</strong> in the app to join.</p><p>This code expires in ${ttl} minutes.</p>`;
-      await this.twilioService.sendEmail(email, subject, messageBody, html);
+      await this.emailService.sendEmail(email, subject, html);
     }
 
     return invitation;

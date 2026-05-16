@@ -8,13 +8,20 @@ import {
   Request,
   Patch,
   Delete,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import {
@@ -24,6 +31,7 @@ import {
   EditProfileDto,
   ChangePasswordDto,
   DeleteAccountDto,
+  VerifyEmailDto,
 } from './dto';
 import { RefreshTokenDto } from './dto/auth-response.dto';
 import { JwtGuard } from './guards/jwt.guard';
@@ -122,6 +130,44 @@ export class AuthController {
   @Post('signup')
   async signup(@Body(ValidationPipe) signupDto: SignupDto) {
     return this.authService.signup(signupDto);
+  }
+
+  /**
+   * POST /auth/verify-email
+   * Verify email and create account
+   */
+  @ApiOperation({
+    summary: 'Verify email and create account',
+    description: 'Verify 6-digit code sent to email to finalize registration.',
+  })
+  @ApiBody({ type: VerifyEmailDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Email verified and account created successfully.',
+    schema: {
+      example: {
+        success: true,
+        message: 'Email verified and account created successfully',
+        data: {
+          user: {
+            id: '507f1f77bcf86cd799439011',
+            username: 'johndoe',
+            email: 'user@example.com',
+          },
+          accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          expiresIn: 3600,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired verification code',
+  })
+  @Post('verify-email')
+  async verifyEmail(@Body(ValidationPipe) verifyEmailDto: VerifyEmailDto) {
+    return this.authService.verifyEmail(verifyEmailDto);
   }
 
   /**
@@ -267,11 +313,35 @@ export class AuthController {
   })
   @UseGuards(JwtGuard)
   @Patch('profile')
+  @UseInterceptors(
+    FileInterceptor('profileImage', {
+      storage: diskStorage({
+        destination: './uploads/profiles',
+        filename: (req, file, cb) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+          return cb(new BadRequestException('Only image files are allowed!'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
   async editProfile(
     @Request() req,
     @Body(ValidationPipe) editProfileDto: EditProfileDto,
+    @UploadedFile() profileImage?: any,
   ) {
-    return this.authService.editProfile(req.user.userId, editProfileDto);
+    const imageUrl = profileImage ? `/uploads/profiles/${profileImage.filename}` : undefined;
+    return this.authService.editProfile(req.user.userId, {
+      ...editProfileDto,
+      profileImage: imageUrl,
+    });
   }
 
   /**
