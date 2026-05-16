@@ -6,6 +6,8 @@ import { Session } from '../entities/session.entity';
 import { GameSessionService } from '../game-session.service';
 import { TwilioService } from './twilio.service';
 import { NodemailerService } from '../../email/nodemailer.service';
+import { UsersService } from '../../users/users.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 @Injectable()
 export class InvitationService {
@@ -15,6 +17,8 @@ export class InvitationService {
     private gameSessionService: GameSessionService,
     private twilioService: TwilioService,
     private emailService: NodemailerService,
+    private usersService: UsersService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async createInvitation(
@@ -111,6 +115,30 @@ export class InvitationService {
       { code, status: 'PENDING' },
       { status: 'USED' },
     );
+
+    // Send push notification to host
+    try {
+      const host = await this.usersService.findById(session.hostId.toString());
+      if (host && host.fcmToken) {
+        const joiningUser = await this.usersService.findById(userId);
+        const title = 'Someone joined your session!';
+        const body = `${displayName} (${joiningUser?.username || 'New Player'}) has joined your Soul Card session.`;
+        
+        await this.notificationsService.sendPushNotification(
+          host.fcmToken,
+          title,
+          body,
+          {
+            sessionId: session._id.toString(),
+            joiningUserId: userId,
+            displayName: displayName,
+          }
+        );
+      }
+    } catch (error) {
+      // Don't fail the join process if notification fails
+      console.error('Failed to send join notification to host:', error.message);
+    }
 
     return session;
   }

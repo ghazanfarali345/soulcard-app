@@ -5,6 +5,7 @@ import {
   MinLength,
   Matches,
   IsBoolean,
+  IsOptional,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -55,4 +56,13 @@ export class SignupDto {
   @IsBoolean()
   @IsNotEmpty()
   termsAccepted: boolean;
+
+  @ApiProperty({
+    description: 'Firebase Cloud Messaging (FCM) Token for push notifications',
+    example: 'f-abc123xyz...',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  fcmToken?: string;
 }

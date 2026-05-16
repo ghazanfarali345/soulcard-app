@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -19,4 +19,13 @@ export class LoginDto {
   @IsNotEmpty()
   @MinLength(6, { message: 'Password must be at least 6 characters' })
   password: string;
+
+  @ApiProperty({
+    description: 'Firebase Cloud Messaging (FCM) Token for push notifications',
+    example: 'f-abc123xyz...',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  fcmToken?: string;
 }

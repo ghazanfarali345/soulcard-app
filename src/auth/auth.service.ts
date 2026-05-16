@@ -78,7 +78,7 @@ export class AuthService {
    * Validates email and password, returns JWT tokens
    */
   async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
+    const { email, password, fcmToken } = loginDto;
 
     // Find user by email
     const user = await this.usersService.findByEmail(email);
@@ -99,6 +99,11 @@ export class AuthService {
     );
     if (!isPasswordValid) {
       throw new BadRequestException('Invalid email or password');
+    }
+
+    // Update fcmToken if provided
+    if (fcmToken && fcmToken !== user.fcmToken) {
+      await this.usersService.updateProfile(user._id.toString(), { fcmToken });
     }
 
     // Generate tokens
@@ -129,7 +134,7 @@ export class AuthService {
    * Creates a new user account and returns JWT tokens
    */
   async signup(signupDto: SignupDto) {
-    const { username, email, password, confirmPassword, termsAccepted } =
+    const { username, email, password, confirmPassword, termsAccepted, fcmToken } =
       signupDto;
 
     // Check if passwords match
@@ -170,6 +175,7 @@ export class AuthService {
         otp,
         otpExpiresAt,
         termsAccepted,
+        fcmToken,
       },
       { upsert: true, new: true },
     );
@@ -216,6 +222,7 @@ export class AuthService {
       email: pendingUser.email,
       password: pendingUser.password,
       termsAccepted: pendingUser.termsAccepted,
+      fcmToken: pendingUser.fcmToken,
     });
 
     // Delete pending registration
@@ -406,6 +413,7 @@ export class AuthService {
             email: updatedUser.email,
             fullName: updatedUser.fullName,
             profileImage: updatedUser.profileImage,
+            fcmToken: updatedUser.fcmToken,
           },
         },
       };

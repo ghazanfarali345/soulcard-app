@@ -10,6 +10,7 @@ import { GeminiModule } from './gemini/gemini.module';
 import { SoulSpaceModule } from './soul-space/soul-space.module';
 import { EmailModule } from './email/email.module';
 import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
     GeminiModule,
     SoulSpaceModule,
     EmailModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

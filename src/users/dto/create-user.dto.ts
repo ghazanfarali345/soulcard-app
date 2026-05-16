@@ -4,6 +4,7 @@ import {
   IsString,
   MinLength,
   Matches,
+  IsOptional,
 } from 'class-validator';
 
 export class CreateUserDto {
@@ -26,4 +27,8 @@ export class CreateUserDto {
 
   @IsNotEmpty()
   termsAccepted: boolean;
+
+  @IsString()
+  @IsOptional()
+  fcmToken?: string;
 }

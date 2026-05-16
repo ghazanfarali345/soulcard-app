@@ -45,4 +45,13 @@ export class EditProfileDto {
   })
   @IsOptional()
   profileImage?: any;
+
+  @ApiProperty({
+    description: 'Firebase Cloud Messaging (FCM) Token for push notifications',
+    example: 'f-abc123xyz...',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  fcmToken?: string;
 }

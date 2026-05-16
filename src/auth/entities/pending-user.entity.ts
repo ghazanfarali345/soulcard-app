@@ -22,6 +22,9 @@ export class PendingUser {
 
   @Prop({ default: false })
   termsAccepted: boolean;
+
+  @Prop({ required: false })
+  fcmToken?: string;
 }
 
 export const PendingUserSchema = SchemaFactory.createForClass(PendingUser);

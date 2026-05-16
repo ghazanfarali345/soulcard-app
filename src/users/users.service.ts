@@ -19,7 +19,7 @@ export class UsersService {
    * Create a new user
    */
   async createUser(createUserDto: CreateUserDto): Promise<UserDocument> {
-    const { username, email, password, termsAccepted } = createUserDto;
+    const { username, email, password, termsAccepted, fcmToken } = createUserDto;
 
     // Check if email already exists
     const existingEmail = await this.userModel.findOne({ email });
@@ -41,6 +41,7 @@ export class UsersService {
       email,
       password,
       termsAccepted,
+      fcmToken,
       isActive: true,
     });
 
@@ -181,8 +182,14 @@ export class UsersService {
    */
   async updateProfile(
     userId: string,
-    updateData: { username?: string; email?: string; fullName?: string; profileImage?: string },
-  ): Promise<UserDocument> {
+    updateData: {
+      username?: string;
+      email?: string;
+      fullName?: string;
+      profileImage?: string;
+      fcmToken?: string;
+    },
+  ) {
     const user = await this.findById(userId);
 
     if (!user) {
@@ -223,6 +230,11 @@ export class UsersService {
     // Update profileImage if provided
     if (updateData.profileImage !== undefined) {
       user.profileImage = updateData.profileImage || null;
+    }
+
+    // Update fcmToken if provided
+    if (updateData.fcmToken !== undefined) {
+      user.fcmToken = updateData.fcmToken || null;
     }
 
     return user.save();
