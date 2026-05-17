@@ -6,6 +6,7 @@ import { Session, SessionStatus } from '../entities/session.entity';
 import { QuestionAnswerKey } from '../entities/question-answer-key.entity';
 import { SessionResult } from '../entities/session-result.entity';
 import { ScoringService, ScoringResult } from './scoring.service';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class UserAnswerService {
@@ -18,6 +19,7 @@ export class UserAnswerService {
     @InjectModel(SessionResult.name)
     private sessionResultModel: Model<SessionResult>,
     private scoringService: ScoringService,
+    private usersService: UsersService,
   ) {}
 
   /**
@@ -512,6 +514,11 @@ export class UserAnswerService {
         sessionId: new Types.ObjectId(sessionId),
       }).sort({ completedAt: 1 });
 
+      // Fetch user profile images for all participants
+      const userIds = allParticipants.map(p => p.userId.toString());
+      const users = await this.usersService.findByIds(userIds);
+      const userMap = new Map(users.map(u => [u._id.toString(), u.profileImage]));
+
       if (!isEveryoneDone) {
         return {
           sessionId,
@@ -522,6 +529,7 @@ export class UserAnswerService {
           participantsProgress: allParticipants.map(p => ({
             userId: p.userId,
             displayName: p.displayName || 'Player',
+            profileImage: userMap.get(p.userId.toString()) || null,
             isCompleted: p.isCompleted,
             answersSubmitted: p.answersSubmitted,
             skippedQuestionsCount: p.skippedQuestions?.length || 0,
@@ -550,6 +558,7 @@ export class UserAnswerService {
         results: results.map(r => ({
           userId: r.userId,
           displayName: allParticipants.find(p => p.userId.toString() === r.userId.toString())?.displayName || 'Player',
+          profileImage: userMap.get(r.userId.toString()) || null,
           finalResults: r.finalResults,
           reflectiveInsights: r.reflectiveInsights,
           answersSubmitted: r.answersSubmitted,

@@ -70,6 +70,13 @@ export class UsersService {
   }
 
   /**
+   * Find users by multiple IDs
+   */
+  async findByIds(ids: string[]): Promise<UserDocument[]> {
+    return this.userModel.find({ _id: { $in: ids } }).exec();
+  }
+
+  /**
    * Get all users (for admin purposes)
    */
   async findAll(): Promise<UserDocument[]> {

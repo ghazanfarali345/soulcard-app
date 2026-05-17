@@ -398,11 +398,23 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
     return await session.save();
   }
 
-  async getSessionById(sessionId: string): Promise<Session> {
+  async getSessionById(sessionId: string): Promise<any> {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) {
       throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
     }
-    return session;
+
+    const participantsInfo = session.participantsInfo || [];
+    const userIds = participantsInfo.map((p) => p.userId.toString());
+    const users = await this.usersService.findByIds(userIds);
+    const userMap = new Map(users.map((u) => [u._id.toString(), u.profileImage]));
+
+    const sessionObj = session.toObject();
+    sessionObj.participantsInfo = sessionObj.participantsInfo.map((p: any) => ({
+      ...p,
+      profileImage: userMap.get(p.userId.toString()) || null,
+    }));
+
+    return sessionObj;
   }
 }

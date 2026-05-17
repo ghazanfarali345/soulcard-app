@@ -39,6 +39,7 @@ export class Session extends Document {
   participantsInfo: {
     userId: Types.ObjectId;
     displayName: string;
+    profileImage?: string | null;
     answersSubmitted: number;
     skippedQuestions: number[];
     isCompleted: boolean;
