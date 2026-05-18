@@ -65,4 +65,13 @@ export class SignupDto {
   @IsString()
   @IsOptional()
   fcmToken?: string;
+
+  @ApiProperty({
+    description: 'Profile image URL or identifier',
+    example: 'https://example.com/profile.jpg',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  profileImage?: string;
 }

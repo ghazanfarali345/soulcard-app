@@ -24,6 +24,7 @@ export class AuthResponseDto {
         id: '507f1f77bcf86cd799439011',
         username: 'johndoe',
         email: 'user@example.com',
+        profileImage: 'https://example.com/profile.jpg',
       },
       accessToken:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
@@ -37,6 +38,7 @@ export class AuthResponseDto {
       id: string;
       username: string;
       email: string;
+      profileImage?: string | null;
     };
     accessToken: string;
     refreshToken: string;

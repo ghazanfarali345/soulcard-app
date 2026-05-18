@@ -25,6 +25,9 @@ export class PendingUser {
 
   @Prop({ required: false })
   fcmToken?: string;
+
+  @Prop({ type: String, default: null })
+  profileImage?: string | null;
 }
 
 export const PendingUserSchema = SchemaFactory.createForClass(PendingUser);

@@ -127,18 +127,25 @@ export class UserAnswerService {
       // Update session progress for this specific participant
       const participantIndex = session.participantsInfo.findIndex(p => p.userId.toString() === userId);
       if (participantIndex !== -1) {
-        session.participantsInfo[participantIndex].answersSubmitted = await this.userAnswerModel.countDocuments({
+        const answersCount = await this.userAnswerModel.countDocuments({
           sessionId: new Types.ObjectId(sessionId),
           playerId: new Types.ObjectId(userId),
         });
+        session.participantsInfo[participantIndex].answersSubmitted = answersCount;
+
+        const totalResponded = answersCount + (session.participantsInfo[participantIndex].skippedQuestions?.length || 0);
+        if (totalResponded >= session.noOfQuestions) {
+          session.participantsInfo[participantIndex].isCompleted = true;
+        }
       } else {
         // If not in participantsInfo yet (e.g. host who hasn't joined formally but is playing)
+        const isCompleted = 1 >= session.noOfQuestions;
         session.participantsInfo.push({
           userId: new Types.ObjectId(userId),
           displayName: 'Player', // Fallback
           answersSubmitted: 1,
           skippedQuestions: [],
-          isCompleted: false,
+          isCompleted,
         });
       }
 
@@ -147,17 +154,17 @@ export class UserAnswerService {
         sessionId: new Types.ObjectId(sessionId),
       });
 
-      // Update status if all participants completed (or just this one)
-      // For now, let's say the session is IN_PROGRESS until at least one person finishes?
-      // Or just keep it simple: if the player who just answered finished all questions
-      const currentPlayerProgress = session.participantsInfo.find(p => p.userId.toString() === userId);
-      if (currentPlayerProgress && (currentPlayerProgress.answersSubmitted + currentPlayerProgress.skippedQuestions.length) === session.noOfQuestions) {
-        // Individual completion reached
+      // Update session status to COMPLETED if all participants completed
+      const allCompleted = session.participantsInfo.every((p) => {
+        const totalRes = p.answersSubmitted + (p.skippedQuestions?.length || 0);
+        return p.isCompleted || totalRes >= session.noOfQuestions;
+      });
+
+      if (allCompleted && session.participantsInfo.length > 0) {
+        session.status = SessionStatus.COMPLETED;
+      } else {
+        session.status = SessionStatus.IN_PROGRESS;
       }
-      
-      // Update session status to COMPLETED only when at least one person is done? 
-      // Actually, better to keep it IN_PROGRESS as long as it's active.
-      session.status = SessionStatus.IN_PROGRESS;
 
       await session.save();
 
@@ -235,12 +242,13 @@ export class UserAnswerService {
       const participant = session.participantsInfo.find(p => p.userId.toString() === userId);
       if (!participant) {
         // Fallback for untracked host
+        const isCompleted = session.noOfQuestions === 1;
         session.participantsInfo.push({
           userId: new Types.ObjectId(userId),
           displayName: 'Player',
           answersSubmitted: 0,
           skippedQuestions: [questionNumber],
-          isCompleted: false,
+          isCompleted,
         });
       } else {
         if (participant.skippedQuestions.includes(questionNumber)) {
@@ -250,11 +258,27 @@ export class UserAnswerService {
           );
         }
         participant.skippedQuestions.push(questionNumber);
+
+        // Mark as completed if they answered/skipped all questions
+        const totalResponded = participant.answersSubmitted + participant.skippedQuestions.length;
+        if (totalResponded >= session.noOfQuestions) {
+          participant.isCompleted = true;
+        }
       }
 
       // Also update top-level skippedQuestions for backward compatibility (optional)
       if (!session.skippedQuestions.includes(questionNumber)) {
         session.skippedQuestions.push(questionNumber);
+      }
+
+      // Update session status to COMPLETED if all participants completed
+      const allCompleted = session.participantsInfo.every((p) => {
+        const totalRes = p.answersSubmitted + (p.skippedQuestions?.length || 0);
+        return p.isCompleted || totalRes >= session.noOfQuestions;
+      });
+
+      if (allCompleted && session.participantsInfo.length > 0) {
+        session.status = SessionStatus.COMPLETED;
       }
 
       await session.save();
@@ -505,7 +529,10 @@ export class UserAnswerService {
       // Check if all participants have completed the session
       const allParticipants = session.participantsInfo || [];
       const totalParticipants = session.participants.length;
-      const completedParticipants = allParticipants.filter(p => p.isCompleted);
+      const completedParticipants = allParticipants.filter(p => {
+        const totalRes = p.answersSubmitted + (p.skippedQuestions?.length || 0);
+        return p.isCompleted || totalRes >= session.noOfQuestions;
+      });
       
       const isEveryoneDone = completedParticipants.length >= totalParticipants && totalParticipants > 0;
 
@@ -526,15 +553,18 @@ export class UserAnswerService {
           message: 'Some participants are still completing their sessions.',
           totalParticipants,
           completedCount: completedParticipants.length,
-          participantsProgress: allParticipants.map(p => ({
-            userId: p.userId,
-            displayName: p.displayName || 'Player',
-            profileImage: userMap.get(p.userId.toString()) || null,
-            isCompleted: p.isCompleted,
-            answersSubmitted: p.answersSubmitted,
-            skippedQuestionsCount: p.skippedQuestions?.length || 0,
-            totalResponded: p.answersSubmitted + (p.skippedQuestions?.length || 0),
-          })),
+          participantsProgress: allParticipants.map(p => {
+            const totalRes = p.answersSubmitted + (p.skippedQuestions?.length || 0);
+            return {
+              userId: p.userId,
+              displayName: p.displayName || 'Player',
+              profileImage: userMap.get(p.userId.toString()) || null,
+              isCompleted: p.isCompleted || totalRes >= session.noOfQuestions,
+              answersSubmitted: p.answersSubmitted,
+              skippedQuestionsCount: p.skippedQuestions?.length || 0,
+              totalResponded: totalRes,
+            };
+          }),
         };
       }
 

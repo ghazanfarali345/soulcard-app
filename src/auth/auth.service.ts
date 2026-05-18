@@ -121,6 +121,7 @@ export class AuthService {
           id: user._id,
           username: user.username,
           email: user.email,
+          profileImage: user.profileImage,
         },
         accessToken,
         refreshToken,
@@ -134,7 +135,7 @@ export class AuthService {
    * Creates a new user account and returns JWT tokens
    */
   async signup(signupDto: SignupDto) {
-    const { username, email, password, confirmPassword, termsAccepted, fcmToken } =
+    const { username, email, password, confirmPassword, termsAccepted, fcmToken, profileImage } =
       signupDto;
 
     // Check if passwords match
@@ -176,6 +177,7 @@ export class AuthService {
         otpExpiresAt,
         termsAccepted,
         fcmToken,
+        profileImage,
       },
       { upsert: true, new: true },
     );
@@ -223,6 +225,7 @@ export class AuthService {
       password: pendingUser.password,
       termsAccepted: pendingUser.termsAccepted,
       fcmToken: pendingUser.fcmToken,
+      profileImage: pendingUser.profileImage || undefined,
     });
 
     // Delete pending registration
@@ -243,6 +246,7 @@ export class AuthService {
           id: newUser._id,
           username: newUser.username,
           email: newUser.email,
+          profileImage: newUser.profileImage,
         },
         accessToken,
         refreshToken,

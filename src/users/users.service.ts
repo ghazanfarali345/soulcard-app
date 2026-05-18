@@ -19,7 +19,7 @@ export class UsersService {
    * Create a new user
    */
   async createUser(createUserDto: CreateUserDto): Promise<UserDocument> {
-    const { username, email, password, termsAccepted, fcmToken } = createUserDto;
+    const { username, email, password, termsAccepted, fcmToken, profileImage } = createUserDto;
 
     // Check if email already exists
     const existingEmail = await this.userModel.findOne({ email });
@@ -42,6 +42,7 @@ export class UsersService {
       password,
       termsAccepted,
       fcmToken,
+      profileImage,
       isActive: true,
     });
 

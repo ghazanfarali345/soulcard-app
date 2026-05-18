@@ -31,4 +31,8 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   fcmToken?: string;
+
+  @IsString()
+  @IsOptional()
+  profileImage?: string;
 }

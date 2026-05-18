@@ -70,6 +70,7 @@ export class AuthController {
             id: '507f1f77bcf86cd799439011',
             username: 'johndoe',
             email: 'user@example.com',
+            profileImage: 'https://example.com/profile.jpg',
           },
           accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
           refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
@@ -105,21 +106,11 @@ export class AuthController {
   @ApiBody({ type: SignupDto })
   @ApiResponse({
     status: 201,
-    description: 'Registration successful. Returns user data with tokens.',
+    description: 'Registration initiated. Verification code sent to email.',
     schema: {
       example: {
         success: true,
-        message: 'Registration successful',
-        data: {
-          user: {
-            id: '507f1f77bcf86cd799439011',
-            username: 'johndoe',
-            email: 'user@example.com',
-          },
-          accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-          refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-          expiresIn: 3600,
-        },
+        message: 'Verification code has been sent to your email',
       },
     },
   })
@@ -159,6 +150,7 @@ export class AuthController {
             id: '507f1f77bcf86cd799439011',
             username: 'johndoe',
             email: 'user@example.com',
+            profileImage: 'https://example.com/profile.jpg',
           },
           accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
           refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
