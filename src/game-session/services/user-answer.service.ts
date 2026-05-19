@@ -592,6 +592,7 @@ export class UserAnswerService {
           profileImage: userMap.get(r.userId.toString()) || null,
           finalResults: r.finalResults,
           reflectiveInsights: r.reflectiveInsights,
+          answersBreakdown: r.answersBreakdown,
           answersSubmitted: r.answersSubmitted,
           completedAt: r.completedAt,
         })),
