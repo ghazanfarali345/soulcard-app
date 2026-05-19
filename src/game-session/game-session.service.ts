@@ -9,6 +9,7 @@ import * as crypto from 'crypto';
 import {
   EngagementMode,
   ENGAGEMENT_MODE_CONFIG,
+  getEngagementMode,
 } from './engagement-mode.config';
 import { UsersService } from '../users/users.service';
 
@@ -129,7 +130,7 @@ export class GameSessionService {
 
       const fullQuestions = this.parseQuestionsWithScoring(
         generatedContent,
-        session.engagementMode as EngagementMode,
+        getEngagementMode(session.engagementMode),
       );
 
       console.log('Parsed Questions Count:', fullQuestions.length);
@@ -175,7 +176,7 @@ export class GameSessionService {
   }
 
   private buildPrompt(session: Session): string {
-    const mode = (session.engagementMode as EngagementMode) || EngagementMode.REFLECTIVE;
+    const mode = getEngagementMode(session.engagementMode);
     const config = ENGAGEMENT_MODE_CONFIG[mode];
     
     const scoringFormat = config.parameters

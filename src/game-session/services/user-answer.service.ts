@@ -7,6 +7,7 @@ import { QuestionAnswerKey } from '../entities/question-answer-key.entity';
 import { SessionResult } from '../entities/session-result.entity';
 import { ScoringService, ScoringResult } from './scoring.service';
 import { UsersService } from '../../users/users.service';
+import { getEngagementMode } from '../engagement-mode.config';
 
 @Injectable()
 export class UserAnswerService {
@@ -100,7 +101,7 @@ export class UserAnswerService {
       const scoringResult = await this.scoringService.scoreAnswer(
         userAnswer,
         questionKey.modelAnswer,
-        session.engagementMode as any, // Cast to EngagementMode enum
+        getEngagementMode(session.engagementMode),
         session.engagement, // e.g. 'guided' or 'spirit'
       );
 
@@ -370,7 +371,7 @@ export class UserAnswerService {
         { 
           soulSpace: session.soulSpace, 
           vibe: session.vibe, 
-          engagementMode: session.engagementMode as any 
+          engagementMode: getEngagementMode(session.engagementMode)
         }
       );
 

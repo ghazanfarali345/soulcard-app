@@ -159,13 +159,26 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
 
         // Parse dynamic metrics
         for (const p of config.parameters) {
-          if (trimmedLine.toLowerCase().startsWith(p.name.toLowerCase())) {
-            const match = trimmedLine.match(/:\s*(\d+)/) || trimmedLine.match(/(\d+)/);
-            if (match) {
-              metrics[p.name.toLowerCase()] = Math.min(
-                20,
-                Math.max(0, parseInt(match[1], 10)),
-              );
+          const pNameLower = p.name.toLowerCase();
+          if (trimmedLine.toLowerCase().includes(pNameLower)) {
+            // To prevent capturing a number from feedback text that mentions the parameter name, 
+            // ensure there's a colon or the line is relatively short (like a bullet point)
+            if (trimmedLine.includes(':') || trimmedLine.length < 60) {
+              // Try to find the number after the parameter name
+              const regex = new RegExp(`${pNameLower}.*?(?::|\\s)\\s*(\\d+)`, 'i');
+              let match = trimmedLine.match(regex);
+              
+              // Fallback to any number on the line
+              if (!match) {
+                match = trimmedLine.match(/:\s*(\d+)/) || trimmedLine.match(/(\d+)/);
+              }
+              
+              if (match) {
+                metrics[pNameLower] = Math.min(
+                  20,
+                  Math.max(0, parseInt(match[1], 10)),
+                );
+              }
             }
           }
         }

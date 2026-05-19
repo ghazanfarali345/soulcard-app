@@ -63,3 +63,11 @@ export const ENGAGEMENT_MODE_CONFIG: Record<EngagementMode, EngagementModeConfig
     ],
   },
 };
+
+export function getEngagementMode(modeStr?: string): EngagementMode {
+  if (!modeStr) return EngagementMode.REFLECTIVE;
+  const found = Object.values(EngagementMode).find(
+    (val) => val.toLowerCase() === modeStr.trim().toLowerCase()
+  );
+  return found || EngagementMode.REFLECTIVE;
+}
