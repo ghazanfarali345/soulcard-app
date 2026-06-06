@@ -160,6 +160,8 @@ export class GameSessionService {
 
       session.questions = simpleQuestions;
       session.status = SessionStatus.QUESTIONS_GENERATED;
+      session.turnOrder = [...session.participants];
+      session.currentTurnIndex = 0;
       await session.save();
 
       return session;

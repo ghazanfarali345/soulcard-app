@@ -8,6 +8,7 @@ import { SessionResult } from '../entities/session-result.entity';
 import { ScoringService, ScoringResult } from './scoring.service';
 import { UsersService } from '../../users/users.service';
 import { getEngagementMode } from '../engagement-mode.config';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 @Injectable()
 export class UserAnswerService {
@@ -21,6 +22,7 @@ export class UserAnswerService {
     private sessionResultModel: Model<SessionResult>,
     private scoringService: ScoringService,
     private usersService: UsersService,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -71,6 +73,17 @@ export class UserAnswerService {
           'User is not a participant in this session',
           HttpStatus.FORBIDDEN,
         );
+      }
+
+      // Turn order enforcement
+      if (session.turnOrder && session.turnOrder.length > 0) {
+        const currentTurnUserId = session.turnOrder[session.currentTurnIndex]?.toString();
+        if (currentTurnUserId && currentTurnUserId !== userId) {
+          throw new HttpException(
+            'It is not your turn to answer. Please wait.',
+            HttpStatus.FORBIDDEN,
+          );
+        }
       }
 
       // Validate question exists
@@ -150,6 +163,18 @@ export class UserAnswerService {
         });
       }
 
+      // Advance turn if player is completed
+      const updatedParticipant = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
+      const totalResponded = (updatedParticipant?.answersSubmitted || 0) + (updatedParticipant?.skippedQuestions?.length || 0);
+      if (updatedParticipant && updatedParticipant.isCompleted) {
+        const currentTurnUserId = session.turnOrder?.[session.currentTurnIndex]?.toString();
+        if (currentTurnUserId === userId) {
+          await this.advanceTurn(session);
+        }
+      }
+
       // Update global session answers count (optional, can be sum of all or just for backward compatibility)
       session.answersSubmitted = await this.userAnswerModel.countDocuments({
         sessionId: new Types.ObjectId(sessionId),
@@ -178,7 +203,7 @@ export class UserAnswerService {
           guidedInsight: scoringResult.guidedInsight,
           constructiveFeedback: scoringResult.constructiveFeedback,
         },
-        isLastQuestion: session.answersSubmitted === session.noOfQuestions,
+        isLastQuestion: totalResponded === session.noOfQuestions,
       };
     } catch (error) {
       if (error instanceof HttpException) {
@@ -227,6 +252,17 @@ export class UserAnswerService {
       const isParticipant = session.participants.some(p => p.toString() === userId);
       if (!isParticipant) {
         throw new HttpException('User is not a participant in this session', HttpStatus.FORBIDDEN);
+      }
+
+      // Turn order enforcement
+      if (session.turnOrder && session.turnOrder.length > 0) {
+        const currentTurnUserId = session.turnOrder[session.currentTurnIndex]?.toString();
+        if (currentTurnUserId && currentTurnUserId !== userId) {
+          throw new HttpException(
+            'It is not your turn to answer. Please wait.',
+            HttpStatus.FORBIDDEN,
+          );
+        }
       }
 
       // Validate question exists
@@ -280,6 +316,17 @@ export class UserAnswerService {
 
       if (allCompleted && session.participantsInfo.length > 0) {
         session.status = SessionStatus.COMPLETED;
+      }
+
+      // Advance turn if player is completed
+      const updatedParticipantCheck = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
+      if (updatedParticipantCheck && updatedParticipantCheck.isCompleted) {
+        const currentTurnUserId = session.turnOrder?.[session.currentTurnIndex]?.toString();
+        if (currentTurnUserId === userId) {
+          await this.advanceTurn(session);
+        }
       }
 
       await session.save();
@@ -537,12 +584,7 @@ export class UserAnswerService {
       
       const isEveryoneDone = completedParticipants.length >= totalParticipants && totalParticipants > 0;
 
-      // Find all session results for this session
-      const results = await this.sessionResultModel.find({
-        sessionId: new Types.ObjectId(sessionId),
-      }).sort({ completedAt: 1 });
-
-      // Fetch user profile images for all participants
+      // Fetch user profile images for all participants (needed for both WAITING and COMPLETED)
       const userIds = allParticipants.map(p => p.userId.toString());
       const users = await this.usersService.findByIds(userIds);
       const userMap = new Map(users.map(u => [u._id.toString(), u.profileImage]));
@@ -569,8 +611,46 @@ export class UserAnswerService {
         };
       }
 
+      // Everyone is done — batch-calculate any missing SessionResult records.
+      // This guarantees that whoever calls the API first triggers calculations
+      // for ALL participants, not just themselves. All subsequent callers
+      // will then immediately receive the full, complete results.
+      await Promise.all(
+        allParticipants.map(async (p) => {
+          const participantId = p.userId.toString();
+
+          const existingResult = await this.sessionResultModel.findOne({
+            sessionId: new Types.ObjectId(sessionId),
+            userId: p.userId,
+          });
+
+          if (!existingResult) {
+            const answersCount = await this.userAnswerModel.countDocuments({
+              sessionId: new Types.ObjectId(sessionId),
+              playerId: p.userId,
+            });
+
+            // Only calculate if the participant actually answered at least one question
+            if (answersCount > 0) {
+              try {
+                await this.calculateFinalResults(sessionId, participantId);
+              } catch (err) {
+                this.logger.error(
+                  `Batch calculation failed for user ${participantId}: ${err.message}`,
+                );
+              }
+            }
+          }
+        }),
+      );
+
+      // Re-fetch all results now that every participant's calculation is complete
+      const allResults = await this.sessionResultModel
+        .find({ sessionId: new Types.ObjectId(sessionId) })
+        .sort({ completedAt: 1 });
+
       // If no results found yet but everyone is supposedly done, it might be a calculation delay
-      if (results.length === 0) {
+      if (allResults.length === 0) {
         return {
           sessionId,
           status: 'CALCULATING',
@@ -579,14 +659,14 @@ export class UserAnswerService {
         };
       }
 
-      // Return combined results for a completed session
+      // Return combined results for a completed session — same view for ALL callers
       return {
         sessionId,
         status: 'COMPLETED',
         soulSpace: session.soulSpace,
         vibe: session.vibe,
         totalParticipants,
-        results: results.map(r => ({
+        results: allResults.map(r => ({
           userId: r.userId,
           displayName: allParticipants.find(p => p.userId.toString() === r.userId.toString())?.displayName || 'Player',
           profileImage: userMap.get(r.userId.toString()) || null,
@@ -606,5 +686,49 @@ export class UserAnswerService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  private async advanceTurn(session: Session): Promise<void> {
+    if (!session.turnOrder || session.turnOrder.length === 0) return;
+
+    // Determine the player who just finished (current index before advancing)
+    const previousUserId = session.turnOrder[session.currentTurnIndex]?.toString();
+    const previousParticipant = session.participantsInfo.find(
+      (p) => p.userId.toString() === previousUserId,
+    );
+
+    session.currentTurnIndex += 1;
+
+    // Determine the next player (may be undefined if all turns are done)
+    const nextUserId = session.turnOrder[session.currentTurnIndex]?.toString() || null;
+    const nextParticipant = nextUserId
+      ? session.participantsInfo.find((p) => p.userId.toString() === nextUserId)
+      : null;
+
+    // Build a data-only payload that the frontend will use to update the UI
+    // All values must be strings for FCM data payloads
+    const notificationData: Record<string, string> = {
+      type: 'turn_changed',
+      sessionId: session._id.toString(),
+      previousTurnUserId: previousUserId || '',
+      previousTurnUserName: previousParticipant?.displayName || 'Player',
+      nextTurnUserId: nextUserId || '',
+      nextTurnUserName: nextParticipant?.displayName || '',
+      currentTurnIndex: session.currentTurnIndex.toString(),
+      totalPlayers: session.turnOrder.length.toString(),
+      isGameOver: (!nextUserId).toString(), // 'true' when all turns are done
+    };
+
+    // Broadcast the data notification to ALL participants in the session
+    const allUserIds = session.turnOrder.map((id) => id.toString());
+    const allUsers = await this.usersService.findByIds(allUserIds);
+
+    await Promise.allSettled(
+      allUsers
+        .filter((user) => user.fcmToken)
+        .map((user) =>
+          this.notificationsService.sendDataNotification(user.fcmToken!, notificationData),
+        ),
+    );
   }
 }

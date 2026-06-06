@@ -43,4 +43,42 @@ export class NotificationsService implements OnModuleInit {
       this.logger.error(`Error sending push notification: ${error.message}`);
     }
   }
+
+  /**
+   * Send a silent data-only push notification.
+   * No visible alert is shown to the user — the frontend receives the data
+   * payload and handles UI updates itself (e.g. showing whose turn it is).
+   */
+  async sendDataNotification(token: string, data: Record<string, string>) {
+    if (!this.firebaseApp) {
+      this.logger.log(`[MOCK DATA PUSH] To: ${token}, Data: ${JSON.stringify(data)}`);
+      return;
+    }
+
+    try {
+      const message = {
+        data,
+        token,
+        android: {
+          priority: 'high' as const,
+        },
+        apns: {
+          headers: {
+            'apns-priority': '10',
+            'apns-push-type': 'background',
+          },
+          payload: {
+            aps: {
+              'content-available': 1,
+            },
+          },
+        },
+      };
+
+      const response = await admin.messaging().send(message);
+      this.logger.log(`Successfully sent data notification: ${response}`);
+    } catch (error) {
+      this.logger.error(`Error sending data notification: ${error.message}`);
+    }
+  }
 }

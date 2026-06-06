@@ -417,6 +417,47 @@ export class GameSessionController {
     };
   }
 
+  @Get(':sessionId/turn')
+  @UseGuards(JwtGuard)
+  @ApiSecurity('access-token')
+  @ApiParam({
+    name: 'sessionId',
+    description: 'The ID of the session',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiOperation({
+    summary: 'Get Current Turn Details',
+    description: 'Get whose turn it currently is to answer questions.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Turn details retrieved successfully',
+  })
+  async getCurrentTurn(@Param('sessionId') sessionId: string, @Req() req: any) {
+    const userId = req.user?.userId;
+    const session = await this.gameSessionService.getSessionById(sessionId);
+    
+    const turnOrder = session.turnOrder || [];
+    const currentTurnIndex = session.currentTurnIndex ?? 0;
+    const currentTurnUserId = turnOrder[currentTurnIndex]?.toString() || null;
+    
+    const currentTurnPlayer = session.participantsInfo?.find(
+      (p: any) => p.userId.toString() === currentTurnUserId,
+    );
+    const currentPlayerName = currentTurnPlayer?.displayName || 'Unknown Player';
+
+    return {
+      success: true,
+      data: {
+        currentTurnUserId,
+        currentTurnIndex,
+        currentPlayerName,
+        isMyTurn: currentTurnUserId === userId,
+        totalPlayers: turnOrder.length,
+      },
+    };
+  }
+
   @Get(':sessionId/progress')
   @UseGuards(JwtGuard)
   @ApiSecurity('access-token')

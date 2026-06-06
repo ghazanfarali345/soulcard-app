@@ -87,6 +87,12 @@ export class Session extends Document {
 
   @Prop({ type: [Number], default: [] })
   skippedQuestions: number[];
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  turnOrder: Types.ObjectId[];
+
+  @Prop({ type: Number, default: 0 })
+  currentTurnIndex: number;
 }
 
 export const SessionSchema = SchemaFactory.createForClass(Session);
