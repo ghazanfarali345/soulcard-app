@@ -77,11 +77,28 @@ export class UserAnswerService {
 
       // Turn order enforcement
       if (session.turnOrder && session.turnOrder.length > 0) {
-        const currentTurnUserId = session.turnOrder[session.currentTurnIndex]?.toString();
+        const totalRequiredTurns = session.turnOrder.length * session.noOfQuestions;
+        const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
+        if (isGameOver) {
+          throw new HttpException(
+            'This session has been fully completed and is no longer accepting answers',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+
+        const currentTurnUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
         if (currentTurnUserId && currentTurnUserId !== userId) {
           throw new HttpException(
             'It is not your turn to answer. Please wait.',
             HttpStatus.FORBIDDEN,
+          );
+        }
+
+        const expectedQuestionId = Math.floor(session.currentTurnIndex / session.turnOrder.length);
+        if (questionId !== expectedQuestionId) {
+          throw new HttpException(
+            `It is not your turn to answer this question. You should be answering question number ${expectedQuestionId + 1}.`,
+            HttpStatus.BAD_REQUEST,
           );
         }
       }
@@ -163,17 +180,18 @@ export class UserAnswerService {
         });
       }
 
-      // Advance turn if player is completed
-      const updatedParticipant = session.participantsInfo.find(
-        (p) => p.userId.toString() === userId,
-      );
-      const totalResponded = (updatedParticipant?.answersSubmitted || 0) + (updatedParticipant?.skippedQuestions?.length || 0);
-      if (updatedParticipant && updatedParticipant.isCompleted) {
-        const currentTurnUserId = session.turnOrder?.[session.currentTurnIndex]?.toString();
+      // Advance turn to next player
+      if (session.turnOrder && session.turnOrder.length > 0) {
+        const currentTurnUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
         if (currentTurnUserId === userId) {
           await this.advanceTurn(session);
         }
       }
+
+      const updatedParticipant = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
+      const totalResponded = (updatedParticipant?.answersSubmitted || 0) + (updatedParticipant?.skippedQuestions?.length || 0);
 
       // Update global session answers count (optional, can be sum of all or just for backward compatibility)
       session.answersSubmitted = await this.userAnswerModel.countDocuments({
@@ -256,11 +274,28 @@ export class UserAnswerService {
 
       // Turn order enforcement
       if (session.turnOrder && session.turnOrder.length > 0) {
-        const currentTurnUserId = session.turnOrder[session.currentTurnIndex]?.toString();
+        const totalRequiredTurns = session.turnOrder.length * session.noOfQuestions;
+        const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
+        if (isGameOver) {
+          throw new HttpException(
+            'This session has been fully completed and is no longer accepting skips',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+
+        const currentTurnUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
         if (currentTurnUserId && currentTurnUserId !== userId) {
           throw new HttpException(
             'It is not your turn to answer. Please wait.',
             HttpStatus.FORBIDDEN,
+          );
+        }
+
+        const expectedQuestionId = Math.floor(session.currentTurnIndex / session.turnOrder.length);
+        if (questionId !== expectedQuestionId) {
+          throw new HttpException(
+            `It is not your turn to skip this question. You should be skipping question number ${expectedQuestionId + 1}.`,
+            HttpStatus.BAD_REQUEST,
           );
         }
       }
@@ -318,12 +353,9 @@ export class UserAnswerService {
         session.status = SessionStatus.COMPLETED;
       }
 
-      // Advance turn if player is completed
-      const updatedParticipantCheck = session.participantsInfo.find(
-        (p) => p.userId.toString() === userId,
-      );
-      if (updatedParticipantCheck && updatedParticipantCheck.isCompleted) {
-        const currentTurnUserId = session.turnOrder?.[session.currentTurnIndex]?.toString();
+      // Advance turn to next player
+      if (session.turnOrder && session.turnOrder.length > 0) {
+        const currentTurnUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
         if (currentTurnUserId === userId) {
           await this.advanceTurn(session);
         }
@@ -692,15 +724,20 @@ export class UserAnswerService {
     if (!session.turnOrder || session.turnOrder.length === 0) return;
 
     // Determine the player who just finished (current index before advancing)
-    const previousUserId = session.turnOrder[session.currentTurnIndex]?.toString();
+    const previousUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
     const previousParticipant = session.participantsInfo.find(
       (p) => p.userId.toString() === previousUserId,
     );
 
     session.currentTurnIndex += 1;
 
-    // Determine the next player (may be undefined if all turns are done)
-    const nextUserId = session.turnOrder[session.currentTurnIndex]?.toString() || null;
+    const totalRequiredTurns = session.turnOrder.length * session.noOfQuestions;
+    const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
+
+    // Determine the next player (may be null if all turns are done)
+    const nextUserId = !isGameOver 
+      ? session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString() || null
+      : null;
     const nextParticipant = nextUserId
       ? session.participantsInfo.find((p) => p.userId.toString() === nextUserId)
       : null;
@@ -716,7 +753,7 @@ export class UserAnswerService {
       nextTurnUserName: nextParticipant?.displayName || '',
       currentTurnIndex: session.currentTurnIndex.toString(),
       totalPlayers: session.turnOrder.length.toString(),
-      isGameOver: (!nextUserId).toString(), // 'true' when all turns are done
+      isGameOver: isGameOver.toString(), // 'true' when all turns are done
     };
 
     // Broadcast the data notification to ALL participants in the session

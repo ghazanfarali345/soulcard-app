@@ -439,7 +439,12 @@ export class GameSessionController {
     
     const turnOrder = session.turnOrder || [];
     const currentTurnIndex = session.currentTurnIndex ?? 0;
-    const currentTurnUserId = turnOrder[currentTurnIndex]?.toString() || null;
+    
+    const totalRequiredTurns = turnOrder.length * session.noOfQuestions;
+    const isGameOver = currentTurnIndex >= totalRequiredTurns;
+    const currentTurnUserId = (!isGameOver && turnOrder.length > 0)
+      ? turnOrder[currentTurnIndex % turnOrder.length]?.toString() || null
+      : null;
     
     const currentTurnPlayer = session.participantsInfo?.find(
       (p: any) => p.userId.toString() === currentTurnUserId,
