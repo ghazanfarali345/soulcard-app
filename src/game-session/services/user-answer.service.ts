@@ -53,6 +53,18 @@ export class UserAnswerService {
         );
       }
 
+      // Ensure questions have been generated and turn order is initialized
+      if (
+        session.status === SessionStatus.INITIALIZED ||
+        !session.turnOrder ||
+        session.turnOrder.length === 0
+      ) {
+        throw new HttpException(
+          'Turn-based play not initialized. Generate questions to start the session.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       // Check if this specific user has completed
       const participantInfo = session.participantsInfo.find(
         (p) => p.userId.toString() === userId,
@@ -77,7 +89,8 @@ export class UserAnswerService {
 
       // Turn order enforcement
       if (session.turnOrder && session.turnOrder.length > 0) {
-        const totalRequiredTurns = session.turnOrder.length * session.noOfQuestions;
+        const totalRequiredTurns =
+          session.turnOrder.length * session.noOfQuestions;
         const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
         if (isGameOver) {
           throw new HttpException(
@@ -86,7 +99,10 @@ export class UserAnswerService {
           );
         }
 
-        const currentTurnUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
+        const currentTurnUserId =
+          session.turnOrder[
+            session.currentTurnIndex % session.turnOrder.length
+          ]?.toString();
         if (currentTurnUserId && currentTurnUserId !== userId) {
           throw new HttpException(
             'It is not your turn to answer. Please wait.',
@@ -94,7 +110,9 @@ export class UserAnswerService {
           );
         }
 
-        const expectedQuestionId = Math.floor(session.currentTurnIndex / session.turnOrder.length);
+        const expectedQuestionId = Math.floor(
+          session.currentTurnIndex / session.turnOrder.length,
+        );
         if (questionId !== expectedQuestionId) {
           throw new HttpException(
             `It is not your turn to answer this question. You should be answering question number ${expectedQuestionId + 1}.`,
@@ -113,6 +131,27 @@ export class UserAnswerService {
 
       const simpleQuestion = session.questions[questionId];
       const questionNumber = questionId + 1;
+
+      // Ensure the turn order is synchronized with participants
+      if (!session.turnOrder || session.turnOrder.length !== session.participants.length) {
+        throw new HttpException(
+          'Turn order is not synchronized with participants. Please ensure all players have joined before answering.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Prevent duplicate submissions from the same player for the same question
+      const existingAnswer = await this.userAnswerModel.findOne({
+        sessionId: new Types.ObjectId(sessionId),
+        playerId: new Types.ObjectId(userId),
+        questionNumber,
+      });
+      if (existingAnswer) {
+        throw new HttpException(
+          'You have already submitted an answer for this question',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
 
       // Fetch full question details (modelAnswer, scoring) from QuestionAnswerKey
       const questionKey = await this.questionAnswerKeyModel.findOne({
@@ -156,15 +195,21 @@ export class UserAnswerService {
       await userAnswerRecord.save();
 
       // Update session progress for this specific participant
-      const participantIndex = session.participantsInfo.findIndex(p => p.userId.toString() === userId);
+      const participantIndex = session.participantsInfo.findIndex(
+        (p) => p.userId.toString() === userId,
+      );
       if (participantIndex !== -1) {
         const answersCount = await this.userAnswerModel.countDocuments({
           sessionId: new Types.ObjectId(sessionId),
           playerId: new Types.ObjectId(userId),
         });
-        session.participantsInfo[participantIndex].answersSubmitted = answersCount;
+        session.participantsInfo[participantIndex].answersSubmitted =
+          answersCount;
 
-        const totalResponded = answersCount + (session.participantsInfo[participantIndex].skippedQuestions?.length || 0);
+        const totalResponded =
+          answersCount +
+          (session.participantsInfo[participantIndex].skippedQuestions
+            ?.length || 0);
         if (totalResponded >= session.noOfQuestions) {
           session.participantsInfo[participantIndex].isCompleted = true;
         }
@@ -182,16 +227,36 @@ export class UserAnswerService {
 
       // Advance turn to next player
       if (session.turnOrder && session.turnOrder.length > 0) {
-        const currentTurnUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
+        const currentTurnUserId =
+          session.turnOrder[
+            session.currentTurnIndex % session.turnOrder.length
+          ]?.toString();
         if (currentTurnUserId === userId) {
-          await this.advanceTurn(session);
+          // Use an atomic findOneAndUpdate to increment currentTurnIndex
+          const prevIndex = session.currentTurnIndex;
+          const updated = await this.sessionModel.findOneAndUpdate(
+            { _id: session._id, currentTurnIndex: prevIndex },
+            { $inc: { currentTurnIndex: 1 } },
+            { new: true },
+          );
+          if (updated) {
+            // update in-memory session and notify participants
+            session.currentTurnIndex = updated.currentTurnIndex;
+            await this.sendTurnChangedNotification(prevIndex, session);
+          } else {
+            // someone else advanced the turn concurrently; reload latest index
+            const reloaded = await this.sessionModel.findById(session._id);
+            if (reloaded) session.currentTurnIndex = reloaded.currentTurnIndex;
+          }
         }
       }
 
       const updatedParticipant = session.participantsInfo.find(
         (p) => p.userId.toString() === userId,
       );
-      const totalResponded = (updatedParticipant?.answersSubmitted || 0) + (updatedParticipant?.skippedQuestions?.length || 0);
+      const totalResponded =
+        (updatedParticipant?.answersSubmitted || 0) +
+        (updatedParticipant?.skippedQuestions?.length || 0);
 
       // Update global session answers count (optional, can be sum of all or just for backward compatibility)
       session.answersSubmitted = await this.userAnswerModel.countDocuments({
@@ -234,6 +299,48 @@ export class UserAnswerService {
     }
   }
 
+  private async sendTurnChangedNotification(previousIndex: number, session: Session): Promise<void> {
+    if (!session.turnOrder || session.turnOrder.length === 0) return;
+
+    const prevUserId = session.turnOrder[previousIndex % session.turnOrder.length]?.toString();
+    const prevParticipant = session.participantsInfo.find(
+      (p) => p.userId.toString() === prevUserId,
+    );
+
+    const totalRequiredTurns = session.turnOrder.length * session.noOfQuestions;
+    const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
+
+    const nextUserId = !isGameOver
+      ? session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString() || null
+      : null;
+    const nextParticipant = nextUserId
+      ? session.participantsInfo.find((p) => p.userId.toString() === nextUserId)
+      : null;
+
+    const notificationData: Record<string, string> = {
+      type: 'turn_changed',
+      sessionId: session._id.toString(),
+      previousTurnUserId: prevUserId || '',
+      previousTurnUserName: prevParticipant?.displayName || 'Player',
+      nextTurnUserId: nextUserId || '',
+      nextTurnUserName: nextParticipant?.displayName || '',
+      currentTurnIndex: session.currentTurnIndex.toString(),
+      totalPlayers: session.turnOrder.length.toString(),
+      isGameOver: isGameOver.toString(),
+    };
+
+    const allUserIds = session.turnOrder.map((id) => id.toString());
+    const allUsers = await this.usersService.findByIds(allUserIds);
+
+    await Promise.allSettled(
+      allUsers
+        .filter((user) => user.fcmToken)
+        .map((user) =>
+          this.notificationsService.sendDataNotification(user.fcmToken!, notificationData),
+        ),
+    );
+  }
+
   /**
    * Skip a question
    * @param sessionId - Session ID
@@ -255,6 +362,18 @@ export class UserAnswerService {
         );
       }
 
+      // Ensure questions have been generated and turn order is initialized
+      if (
+        session.status === SessionStatus.INITIALIZED ||
+        !session.turnOrder ||
+        session.turnOrder.length === 0
+      ) {
+        throw new HttpException(
+          'Turn-based play not initialized. Generate questions to start the session.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
       // Check if this specific user has completed
       const participantInfo = session.participantsInfo.find(
         (p) => p.userId.toString() === userId,
@@ -267,14 +386,20 @@ export class UserAnswerService {
       }
 
       // Validate user is a participant
-      const isParticipant = session.participants.some(p => p.toString() === userId);
+      const isParticipant = session.participants.some(
+        (p) => p.toString() === userId,
+      );
       if (!isParticipant) {
-        throw new HttpException('User is not a participant in this session', HttpStatus.FORBIDDEN);
+        throw new HttpException(
+          'User is not a participant in this session',
+          HttpStatus.FORBIDDEN,
+        );
       }
 
       // Turn order enforcement
       if (session.turnOrder && session.turnOrder.length > 0) {
-        const totalRequiredTurns = session.turnOrder.length * session.noOfQuestions;
+        const totalRequiredTurns =
+          session.turnOrder.length * session.noOfQuestions;
         const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
         if (isGameOver) {
           throw new HttpException(
@@ -283,7 +408,10 @@ export class UserAnswerService {
           );
         }
 
-        const currentTurnUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
+        const currentTurnUserId =
+          session.turnOrder[
+            session.currentTurnIndex % session.turnOrder.length
+          ]?.toString();
         if (currentTurnUserId && currentTurnUserId !== userId) {
           throw new HttpException(
             'It is not your turn to answer. Please wait.',
@@ -291,7 +419,9 @@ export class UserAnswerService {
           );
         }
 
-        const expectedQuestionId = Math.floor(session.currentTurnIndex / session.turnOrder.length);
+        const expectedQuestionId = Math.floor(
+          session.currentTurnIndex / session.turnOrder.length,
+        );
         if (questionId !== expectedQuestionId) {
           throw new HttpException(
             `It is not your turn to skip this question. You should be skipping question number ${expectedQuestionId + 1}.`,
@@ -311,7 +441,9 @@ export class UserAnswerService {
       const questionNumber = questionId + 1;
 
       // Track skip for this participant
-      const participant = session.participantsInfo.find(p => p.userId.toString() === userId);
+      const participant = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
       if (!participant) {
         // Fallback for untracked host
         const isCompleted = session.noOfQuestions === 1;
@@ -332,7 +464,8 @@ export class UserAnswerService {
         participant.skippedQuestions.push(questionNumber);
 
         // Mark as completed if they answered/skipped all questions
-        const totalResponded = participant.answersSubmitted + participant.skippedQuestions.length;
+        const totalResponded =
+          participant.answersSubmitted + participant.skippedQuestions.length;
         if (totalResponded >= session.noOfQuestions) {
           participant.isCompleted = true;
         }
@@ -355,16 +488,35 @@ export class UserAnswerService {
 
       // Advance turn to next player
       if (session.turnOrder && session.turnOrder.length > 0) {
-        const currentTurnUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
+        const currentTurnUserId =
+          session.turnOrder[
+            session.currentTurnIndex % session.turnOrder.length
+          ]?.toString();
         if (currentTurnUserId === userId) {
-          await this.advanceTurn(session);
+          const prevIndex = session.currentTurnIndex;
+          const updated = await this.sessionModel.findOneAndUpdate(
+            { _id: session._id, currentTurnIndex: prevIndex },
+            { $inc: { currentTurnIndex: 1 } },
+            { new: true },
+          );
+          if (updated) {
+            session.currentTurnIndex = updated.currentTurnIndex;
+            await this.sendTurnChangedNotification(prevIndex, session);
+          } else {
+            const reloaded = await this.sessionModel.findById(session._id);
+            if (reloaded) session.currentTurnIndex = reloaded.currentTurnIndex;
+          }
         }
       }
 
       await session.save();
 
-      const updatedParticipant = session.participantsInfo.find(p => p.userId.toString() === userId);
-      const totalResponded = (updatedParticipant?.answersSubmitted || 0) + (updatedParticipant?.skippedQuestions.length || 0);
+      const updatedParticipant = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
+      const totalResponded =
+        (updatedParticipant?.answersSubmitted || 0) +
+        (updatedParticipant?.skippedQuestions.length || 0);
 
       return {
         questionNumber,
@@ -419,10 +571,12 @@ export class UserAnswerService {
       }
 
       // Get all answers for this player in this session
-      const answers = await this.userAnswerModel.find({
-        sessionId: new Types.ObjectId(sessionId),
-        playerId: new Types.ObjectId(userId),
-      }).sort({ questionNumber: 1 });
+      const answers = await this.userAnswerModel
+        .find({
+          sessionId: new Types.ObjectId(sessionId),
+          playerId: new Types.ObjectId(userId),
+        })
+        .sort({ questionNumber: 1 });
 
       if (answers.length === 0) {
         throw new HttpException(
@@ -444,15 +598,16 @@ export class UserAnswerService {
         this.scoringService.calculateAggregateScores(scores);
 
       // Generate AI narrative insights
-      const reflectiveInsights = await this.scoringService.generateReflectiveInsights(
-        aggregateScores.overallScore,
-        aggregateScores.metrics,
-        { 
-          soulSpace: session.soulSpace, 
-          vibe: session.vibe, 
-          engagementMode: getEngagementMode(session.engagementMode)
-        }
-      );
+      const reflectiveInsights =
+        await this.scoringService.generateReflectiveInsights(
+          aggregateScores.overallScore,
+          aggregateScores.metrics,
+          {
+            soulSpace: session.soulSpace,
+            vibe: session.vibe,
+            engagementMode: getEngagementMode(session.engagementMode),
+          },
+        );
 
       // Create and save SessionResult for history (per player)
       const answersBreakdown = answers.map((answer) => ({
@@ -477,7 +632,9 @@ export class UserAnswerService {
         vibe: session.vibe,
         totalQuestions: session.noOfQuestions,
         answersSubmitted: answers.length,
-        skippedQuestions: session.participantsInfo.find(p => p.userId.toString() === userId)?.skippedQuestions || [],
+        skippedQuestions:
+          session.participantsInfo.find((p) => p.userId.toString() === userId)
+            ?.skippedQuestions || [],
         finalResults: {
           overallScore: aggregateScores.overallScore,
           metrics: aggregateScores.metrics,
@@ -519,35 +676,37 @@ export class UserAnswerService {
         throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
       }
 
-      const playerProgress = await Promise.all(session.participantsInfo.map(async (p) => {
-        const answersCount = await this.userAnswerModel.countDocuments({
-          sessionId: new Types.ObjectId(sessionId),
-          playerId: p.userId,
-        });
-
-        const totalResponded = answersCount + p.skippedQuestions.length;
-        const isComplete = totalResponded === session.noOfQuestions;
-
-        let results: any = null;
-        if (isComplete) {
-          const sessionResult = await this.sessionResultModel.findOne({
+      const playerProgress = await Promise.all(
+        session.participantsInfo.map(async (p) => {
+          const answersCount = await this.userAnswerModel.countDocuments({
             sessionId: new Types.ObjectId(sessionId),
-            userId: p.userId,
+            playerId: p.userId,
           });
-          if (sessionResult) {
-            results = sessionResult.finalResults;
-          }
-        }
 
-        return {
-          playerId: p.userId,
-          displayName: p.displayName,
-          answersSubmitted: answersCount,
-          skippedQuestions: p.skippedQuestions,
-          isComplete,
-          results,
-        };
-      }));
+          const totalResponded = answersCount + p.skippedQuestions.length;
+          const isComplete = totalResponded === session.noOfQuestions;
+
+          let results: any = null;
+          if (isComplete) {
+            const sessionResult = await this.sessionResultModel.findOne({
+              sessionId: new Types.ObjectId(sessionId),
+              userId: p.userId,
+            });
+            if (sessionResult) {
+              results = sessionResult.finalResults;
+            }
+          }
+
+          return {
+            playerId: p.userId,
+            displayName: p.displayName,
+            answersSubmitted: answersCount,
+            skippedQuestions: p.skippedQuestions,
+            isComplete,
+            results,
+          };
+        }),
+      );
 
       return {
         sessionId,
@@ -587,20 +746,25 @@ export class UserAnswerService {
         });
 
         if (!existingResult) {
-          const participant = session.participantsInfo.find(p => p.userId.toString() === userId);
+          const participant = session.participantsInfo.find(
+            (p) => p.userId.toString() === userId,
+          );
           const answersCount = await this.userAnswerModel.countDocuments({
             sessionId: new Types.ObjectId(sessionId),
             playerId: new Types.ObjectId(userId),
           });
 
-          const totalResponded = answersCount + (participant?.skippedQuestions.length || 0);
-          
+          const totalResponded =
+            answersCount + (participant?.skippedQuestions.length || 0);
+
           // If they have responded to all questions, calculate now
           if (totalResponded >= session.noOfQuestions && answersCount > 0) {
             try {
               await this.calculateFinalResults(sessionId, userId);
             } catch (err) {
-              this.logger.error(`Auto-calculation failed for user ${userId}: ${err.message}`);
+              this.logger.error(
+                `Auto-calculation failed for user ${userId}: ${err.message}`,
+              );
             }
           }
         }
@@ -609,17 +773,21 @@ export class UserAnswerService {
       // Check if all participants have completed the session
       const allParticipants = session.participantsInfo || [];
       const totalParticipants = session.participants.length;
-      const completedParticipants = allParticipants.filter(p => {
+      const completedParticipants = allParticipants.filter((p) => {
         const totalRes = p.answersSubmitted + (p.skippedQuestions?.length || 0);
         return p.isCompleted || totalRes >= session.noOfQuestions;
       });
-      
-      const isEveryoneDone = completedParticipants.length >= totalParticipants && totalParticipants > 0;
+
+      const isEveryoneDone =
+        completedParticipants.length >= totalParticipants &&
+        totalParticipants > 0;
 
       // Fetch user profile images for all participants (needed for both WAITING and COMPLETED)
-      const userIds = allParticipants.map(p => p.userId.toString());
+      const userIds = allParticipants.map((p) => p.userId.toString());
       const users = await this.usersService.findByIds(userIds);
-      const userMap = new Map(users.map(u => [u._id.toString(), u.profileImage]));
+      const userMap = new Map(
+        users.map((u) => [u._id.toString(), u.profileImage]),
+      );
 
       if (!isEveryoneDone) {
         return {
@@ -628,8 +796,9 @@ export class UserAnswerService {
           message: 'Some participants are still completing their sessions.',
           totalParticipants,
           completedCount: completedParticipants.length,
-          participantsProgress: allParticipants.map(p => {
-            const totalRes = p.answersSubmitted + (p.skippedQuestions?.length || 0);
+          participantsProgress: allParticipants.map((p) => {
+            const totalRes =
+              p.answersSubmitted + (p.skippedQuestions?.length || 0);
             return {
               userId: p.userId,
               displayName: p.displayName || 'Player',
@@ -686,7 +855,8 @@ export class UserAnswerService {
         return {
           sessionId,
           status: 'CALCULATING',
-          message: 'All participants have finished. AI insights are being calculated. Please refresh in a moment.',
+          message:
+            'All participants have finished. AI insights are being calculated. Please refresh in a moment.',
           totalParticipants,
         };
       }
@@ -698,9 +868,12 @@ export class UserAnswerService {
         soulSpace: session.soulSpace,
         vibe: session.vibe,
         totalParticipants,
-        results: allResults.map(r => ({
+        results: allResults.map((r) => ({
           userId: r.userId,
-          displayName: allParticipants.find(p => p.userId.toString() === r.userId.toString())?.displayName || 'Player',
+          displayName:
+            allParticipants.find(
+              (p) => p.userId.toString() === r.userId.toString(),
+            )?.displayName || 'Player',
           profileImage: userMap.get(r.userId.toString()) || null,
           finalResults: r.finalResults,
           reflectiveInsights: r.reflectiveInsights,
@@ -724,7 +897,10 @@ export class UserAnswerService {
     if (!session.turnOrder || session.turnOrder.length === 0) return;
 
     // Determine the player who just finished (current index before advancing)
-    const previousUserId = session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString();
+    const previousUserId =
+      session.turnOrder[
+        session.currentTurnIndex % session.turnOrder.length
+      ]?.toString();
     const previousParticipant = session.participantsInfo.find(
       (p) => p.userId.toString() === previousUserId,
     );
@@ -735,8 +911,10 @@ export class UserAnswerService {
     const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
 
     // Determine the next player (may be null if all turns are done)
-    const nextUserId = !isGameOver 
-      ? session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString() || null
+    const nextUserId = !isGameOver
+      ? session.turnOrder[
+          session.currentTurnIndex % session.turnOrder.length
+        ]?.toString() || null
       : null;
     const nextParticipant = nextUserId
       ? session.participantsInfo.find((p) => p.userId.toString() === nextUserId)
@@ -764,7 +942,10 @@ export class UserAnswerService {
       allUsers
         .filter((user) => user.fcmToken)
         .map((user) =>
-          this.notificationsService.sendDataNotification(user.fcmToken!, notificationData),
+          this.notificationsService.sendDataNotification(
+            user.fcmToken!,
+            notificationData,
+          ),
         ),
     );
   }

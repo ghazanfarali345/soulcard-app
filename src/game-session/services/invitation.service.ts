@@ -93,6 +93,22 @@ export class InvitationService {
         isCompleted: false,
       });
       await session.save();
+
+      // Ensure turnOrder preserves join order even if questions were generated earlier.
+      // If turnOrder doesn't exist or is empty, initialize from participants.
+      if (!session.turnOrder || session.turnOrder.length === 0) {
+        session.turnOrder = [...session.participants];
+        await session.save();
+      } else {
+        // Append the new participant at the end if not already present
+        const alreadyInTurnOrder = session.turnOrder.some(
+          (p) => p.toString() === userId,
+        );
+        if (!alreadyInTurnOrder) {
+          session.turnOrder.push(userObjectId);
+          await session.save();
+        }
+      }
     } else {
       // Update display name if already participant
       const info = session.participantsInfo.find((p) => p.userId.toString() === userId);

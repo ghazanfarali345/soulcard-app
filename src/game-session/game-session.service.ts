@@ -37,7 +37,8 @@ const DIFFICULTY_DEFINITIONS = {
     goal: 'Advanced philosophical exploration',
   },
   LUMINARY: {
-    description: 'Mature reasoning, deeper reflection, and stronger intellectual discussion',
+    description:
+      'Mature reasoning, deeper reflection, and stronger intellectual discussion',
     level: 'High School Level (Grade 9–12)',
     goal: 'Mature intellectual reflection',
   },
@@ -59,7 +60,7 @@ export class GameSessionService {
   ): Promise<Session> {
     const userObjectId = new Types.ObjectId(userId);
     const user = await this.usersService.findById(userId);
-    
+
     const newSession = new this.sessionModel({
       userId: userObjectId,
       hostId: userObjectId,
@@ -180,7 +181,7 @@ export class GameSessionService {
   private buildPrompt(session: Session): string {
     const mode = getEngagementMode(session.engagementMode);
     const config = ENGAGEMENT_MODE_CONFIG[mode];
-    
+
     const scoringFormat = config.parameters
       .map((p) => `${p.name}: [X]/10`)
       .join(' | ');
@@ -189,8 +190,10 @@ export class GameSessionService {
       .map((p) => `- ${p.name}: ${p.description} (0-10)`)
       .join('\n   ');
 
-    const difficulty = (session.difficultyLevel?.toUpperCase() || 'SEEKER') as keyof typeof DIFFICULTY_DEFINITIONS;
-    const diffDef = DIFFICULTY_DEFINITIONS[difficulty] || DIFFICULTY_DEFINITIONS.SEEKER;
+    const difficulty = (session.difficultyLevel?.toUpperCase() ||
+      'SEEKER') as keyof typeof DIFFICULTY_DEFINITIONS;
+    const diffDef =
+      DIFFICULTY_DEFINITIONS[difficulty] || DIFFICULTY_DEFINITIONS.SEEKER;
 
     return `You are an expert educational content creator. Generate exactly ${session.noOfQuestions} profound, thought-provoking questions for the Soul Card Game.
 
@@ -348,7 +351,8 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
       });
 
       if (!aiFeedback) {
-        aiFeedback = 'This response shows thoughtful consideration of the topic.';
+        aiFeedback =
+          'This response shows thoughtful consideration of the topic.';
       }
 
       return {
@@ -378,7 +382,9 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
       session.participantsInfo.push({
         userId: new Types.ObjectId(userId),
         displayName: 'Player', // Fallback
-        answersSubmitted: await this.questionAnswerKeyModel.countDocuments({ sessionId: new Types.ObjectId(sessionId) }), // This count logic might need adjustment but usually we'd have them in info
+        answersSubmitted: await this.questionAnswerKeyModel.countDocuments({
+          sessionId: new Types.ObjectId(sessionId),
+        }), // This count logic might need adjustment but usually we'd have them in info
         skippedQuestions: [],
         isCompleted: true,
       });
@@ -410,7 +416,9 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
     const participantsInfo = session.participantsInfo || [];
     const userIds = participantsInfo.map((p) => p.userId.toString());
     const users = await this.usersService.findByIds(userIds);
-    const userMap = new Map(users.map((u) => [u._id.toString(), u.profileImage]));
+    const userMap = new Map(
+      users.map((u) => [u._id.toString(), u.profileImage]),
+    );
 
     const sessionObj = session.toObject();
     sessionObj.participantsInfo = sessionObj.participantsInfo.map((p: any) => ({

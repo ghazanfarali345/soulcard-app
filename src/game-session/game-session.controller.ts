@@ -66,13 +66,13 @@ export class GameSessionController {
         data: {
           _id: '507f1f77bcf86cd799439011',
           userId: '507f1f77bcf86cd799439012',
-          soulSpace: 'personal',
-          vibe: 'relaxed',
+          soulSpace: 'Human Foundation',
+          vibe: 'Conflict Resolution',
           noOfPlayers: 2,
-          difficultyLevel: 'medium',
-          engagementMode: 'competitive',
-          engagement: 'deep',
-          noOfQuestions: 10,
+          difficultyLevel: 'Seeker',
+          engagementMode: 'Reflective',
+          engagement: 'guided',
+          noOfQuestions: 5,
           createdAt: '2026-04-19T10:30:00.000Z',
           updatedAt: '2026-04-19T10:30:00.000Z',
         },
@@ -140,7 +140,8 @@ export class GameSessionController {
   @ApiSecurity('access-token')
   @ApiOperation({
     summary: 'Join Session with OTP',
-    description: 'Join an existing multiplayer session using a 12-character OTP join code.',
+    description:
+      'Join an existing multiplayer session using a 12-character OTP join code.',
   })
   @ApiBody({ type: JoinSessionDto })
   async joinSession(@Req() req: any, @Body() dto: JoinSessionDto) {
@@ -398,7 +399,8 @@ export class GameSessionController {
   })
   @ApiOperation({
     summary: 'Get Session Details',
-    description: 'Retrieve the configuration and current status of a specific game session.',
+    description:
+      'Retrieve the configuration and current status of a specific game session.',
   })
   @ApiResponse({
     status: 200,
@@ -434,32 +436,12 @@ export class GameSessionController {
     description: 'Turn details retrieved successfully',
   })
   async getCurrentTurn(@Param('sessionId') sessionId: string, @Req() req: any) {
-    const userId = req.user?.userId;
-    const session = await this.gameSessionService.getSessionById(sessionId);
-    
-    const turnOrder = session.turnOrder || [];
-    const currentTurnIndex = session.currentTurnIndex ?? 0;
-    
-    const totalRequiredTurns = turnOrder.length * session.noOfQuestions;
-    const isGameOver = currentTurnIndex >= totalRequiredTurns;
-    const currentTurnUserId = (!isGameOver && turnOrder.length > 0)
-      ? turnOrder[currentTurnIndex % turnOrder.length]?.toString() || null
-      : null;
-    
-    const currentTurnPlayer = session.participantsInfo?.find(
-      (p: any) => p.userId.toString() === currentTurnUserId,
-    );
-    const currentPlayerName = currentTurnPlayer?.displayName || 'Unknown Player';
-
+    // Deprecated/removed: this endpoint is no longer required.
+    // Keep the route present but return a 404-like message to discourage use.
     return {
-      success: true,
-      data: {
-        currentTurnUserId,
-        currentTurnIndex,
-        currentPlayerName,
-        isMyTurn: currentTurnUserId === userId,
-        totalPlayers: turnOrder.length,
-      },
+      success: false,
+      message:
+        'The turn endpoint is deprecated and not required. Use questions/answer endpoints with enforced turn order.',
     };
   }
 
@@ -544,14 +526,17 @@ export class GameSessionController {
             },
           },
           reflectiveInsights: {
-            reflectiveStrengths: 'You showed up and participated, which is the most important step!',
-            deepeningAwareness: 'To enhance your self-awareness, consider focusing on Reflective Depth...',
-            whatThisMeans: 'Your responses demonstrate authentic self-awareness...',
+            reflectiveStrengths:
+              'You showed up and participated, which is the most important step!',
+            deepeningAwareness:
+              'To enhance your self-awareness, consider focusing on Reflective Depth...',
+            whatThisMeans:
+              'Your responses demonstrate authentic self-awareness...',
             nextBestAction: 'Continue holding space for what arises...',
             personalizedRecommendations: [
               'Begin with short, simple reflections',
-              'Read reflective essays'
-            ]
+              'Read reflective essays',
+            ],
           },
           answersBreakdown: [
             {
@@ -593,7 +578,10 @@ export class GameSessionController {
     @Req() req: any,
   ) {
     const userId = req.user?.userId;
-    const data = await this.userAnswerService.getSessionFinalResults(sessionId, userId);
+    const data = await this.userAnswerService.getSessionFinalResults(
+      sessionId,
+      userId,
+    );
     return {
       success: true,
       message: 'All participant results retrieved successfully',
@@ -610,7 +598,8 @@ export class GameSessionController {
   })
   @ApiOperation({
     summary: 'End Game Session',
-    description: 'Manually end the game session. Only the host can perform this action.',
+    description:
+      'Manually end the game session. Only the host can perform this action.',
   })
   @ApiResponse({
     status: 200,
