@@ -3,7 +3,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class SessionDetailsDto {
   @ApiProperty({
-    example: 'personal',
+    example: 'Human Foundation',
+    default: 'Human Foundation',
     description: 'The soul space type for the game session',
   })
   @IsNotEmpty()
@@ -11,7 +12,8 @@ export class SessionDetailsDto {
   soulSpace: string;
 
   @ApiProperty({
-    example: 'relaxed',
+    example: 'Conflict Resolution',
+    default: 'Conflict Resolution',
     description: 'The vibe or atmosphere for the session',
   })
   @IsNotEmpty()
@@ -20,6 +22,7 @@ export class SessionDetailsDto {
 
   @ApiProperty({
     example: 2,
+    default: 2,
     description: 'Number of players participating in the session',
   })
   @IsNotEmpty()
@@ -27,7 +30,8 @@ export class SessionDetailsDto {
   noOfPlayers: number;
 
   @ApiProperty({
-    example: 'medium',
+    example: 'Seeker',
+    default: 'Seeker',
     description: 'Difficulty level of the game session',
   })
   @IsNotEmpty()
@@ -35,7 +39,8 @@ export class SessionDetailsDto {
   difficultyLevel: string;
 
   @ApiProperty({
-    example: 'competitive',
+    example: 'Reflective',
+    default: 'Reflective',
     description: 'The engagement mode for the session',
   })
   @IsNotEmpty()
@@ -43,7 +48,8 @@ export class SessionDetailsDto {
   engagementMode: string;
 
   @ApiProperty({
-    example: 'deep',
+    example: 'guided',
+    default: 'guided',
     description: 'Type of engagement for the session',
   })
   @IsNotEmpty()
@@ -51,7 +57,8 @@ export class SessionDetailsDto {
   engagement: string;
 
   @ApiProperty({
-    example: 10,
+    example: 5,
+    default: 5,
     description: 'Number of questions in the session',
   })
   @IsNotEmpty()
