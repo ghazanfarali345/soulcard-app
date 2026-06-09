@@ -53,16 +53,24 @@ export class UserAnswerService {
         );
       }
 
-      // Ensure questions have been generated and turn order is initialized
-      if (
-        session.status === SessionStatus.INITIALIZED ||
-        !session.turnOrder ||
-        session.turnOrder.length === 0
-      ) {
-        throw new HttpException(
-          'Turn-based play not initialized. Generate questions to start the session.',
-          HttpStatus.BAD_REQUEST,
-        );
+      // Solo sessions bypass turn-order initialization and enforcement
+      const isSolo =
+        session.noOfPlayers === 1 ||
+        !session.participants ||
+        session.participants.length <= 1;
+
+      // Ensure questions have been generated and turn order is initialized for multiplayer
+      if (!isSolo) {
+        if (
+          session.status === SessionStatus.INITIALIZED ||
+          !session.turnOrder ||
+          session.turnOrder.length === 0
+        ) {
+          throw new HttpException(
+            'Turn-based play not initialized. Generate questions to start the session.',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
       }
 
       // Check if this specific user has completed
@@ -87,8 +95,8 @@ export class UserAnswerService {
         );
       }
 
-      // Turn order enforcement
-      if (session.turnOrder && session.turnOrder.length > 0) {
+      // Turn order enforcement (skip for solo)
+      if (!isSolo && session.turnOrder && session.turnOrder.length > 0) {
         const totalRequiredTurns =
           session.turnOrder.length * session.noOfQuestions;
         const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
@@ -132,15 +140,17 @@ export class UserAnswerService {
       const simpleQuestion = session.questions[questionId];
       const questionNumber = questionId + 1;
 
-      // Ensure the turn order is synchronized with participants
-      if (
-        !session.turnOrder ||
-        session.turnOrder.length !== session.participants.length
-      ) {
-        throw new HttpException(
-          'Turn order is not synchronized with participants. Please ensure all players have joined before answering.',
-          HttpStatus.BAD_REQUEST,
-        );
+      // Ensure the turn order is synchronized with participants for multiplayer
+      if (!isSolo) {
+        if (
+          !session.turnOrder ||
+          session.turnOrder.length !== session.participants.length
+        ) {
+          throw new HttpException(
+            'Turn order is not synchronized with participants. Please ensure all players have joined before answering.',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
       }
 
       // Prevent duplicate submissions from the same player for the same question
@@ -228,8 +238,8 @@ export class UserAnswerService {
         });
       }
 
-      // Advance turn to next player
-      if (session.turnOrder && session.turnOrder.length > 0) {
+      // Advance turn to next player for multiplayer only
+      if (!isSolo && session.turnOrder && session.turnOrder.length > 0) {
         const currentTurnUserId =
           session.turnOrder[
             session.currentTurnIndex % session.turnOrder.length
@@ -374,16 +384,24 @@ export class UserAnswerService {
         );
       }
 
-      // Ensure questions have been generated and turn order is initialized
-      if (
-        session.status === SessionStatus.INITIALIZED ||
-        !session.turnOrder ||
-        session.turnOrder.length === 0
-      ) {
-        throw new HttpException(
-          'Turn-based play not initialized. Generate questions to start the session.',
-          HttpStatus.BAD_REQUEST,
-        );
+      // Solo sessions bypass turn-order initialization and enforcement
+      const isSolo =
+        session.noOfPlayers === 1 ||
+        !session.participants ||
+        session.participants.length <= 1;
+
+      // Ensure questions have been generated and turn order is initialized for multiplayer
+      if (!isSolo) {
+        if (
+          session.status === SessionStatus.INITIALIZED ||
+          !session.turnOrder ||
+          session.turnOrder.length === 0
+        ) {
+          throw new HttpException(
+            'Turn-based play not initialized. Generate questions to start the session.',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
       }
 
       // Check if this specific user has completed
@@ -408,8 +426,8 @@ export class UserAnswerService {
         );
       }
 
-      // Turn order enforcement
-      if (session.turnOrder && session.turnOrder.length > 0) {
+      // Turn order enforcement (skip for solo)
+      if (!isSolo && session.turnOrder && session.turnOrder.length > 0) {
         const totalRequiredTurns =
           session.turnOrder.length * session.noOfQuestions;
         const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
@@ -498,8 +516,8 @@ export class UserAnswerService {
         session.status = SessionStatus.COMPLETED;
       }
 
-      // Advance turn to next player
-      if (session.turnOrder && session.turnOrder.length > 0) {
+      // Advance turn to next player for multiplayer only
+      if (!isSolo && session.turnOrder && session.turnOrder.length > 0) {
         const currentTurnUserId =
           session.turnOrder[
             session.currentTurnIndex % session.turnOrder.length
