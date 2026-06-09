@@ -133,7 +133,10 @@ export class UserAnswerService {
       const questionNumber = questionId + 1;
 
       // Ensure the turn order is synchronized with participants
-      if (!session.turnOrder || session.turnOrder.length !== session.participants.length) {
+      if (
+        !session.turnOrder ||
+        session.turnOrder.length !== session.participants.length
+      ) {
         throw new HttpException(
           'Turn order is not synchronized with participants. Please ensure all players have joined before answering.',
           HttpStatus.BAD_REQUEST,
@@ -299,10 +302,14 @@ export class UserAnswerService {
     }
   }
 
-  private async sendTurnChangedNotification(previousIndex: number, session: Session): Promise<void> {
+  private async sendTurnChangedNotification(
+    previousIndex: number,
+    session: Session,
+  ): Promise<void> {
     if (!session.turnOrder || session.turnOrder.length === 0) return;
 
-    const prevUserId = session.turnOrder[previousIndex % session.turnOrder.length]?.toString();
+    const prevUserId =
+      session.turnOrder[previousIndex % session.turnOrder.length]?.toString();
     const prevParticipant = session.participantsInfo.find(
       (p) => p.userId.toString() === prevUserId,
     );
@@ -311,7 +318,9 @@ export class UserAnswerService {
     const isGameOver = session.currentTurnIndex >= totalRequiredTurns;
 
     const nextUserId = !isGameOver
-      ? session.turnOrder[session.currentTurnIndex % session.turnOrder.length]?.toString() || null
+      ? session.turnOrder[
+          session.currentTurnIndex % session.turnOrder.length
+        ]?.toString() || null
       : null;
     const nextParticipant = nextUserId
       ? session.participantsInfo.find((p) => p.userId.toString() === nextUserId)
@@ -336,7 +345,10 @@ export class UserAnswerService {
       allUsers
         .filter((user) => user.fcmToken)
         .map((user) =>
-          this.notificationsService.sendDataNotification(user.fcmToken!, notificationData),
+          this.notificationsService.sendDataNotification(
+            user.fcmToken!,
+            notificationData,
+          ),
         ),
     );
   }
@@ -623,9 +635,8 @@ export class UserAnswerService {
         },
       }));
 
-      // We might want to store multiple results per session now, one for each user
-      // Or update the existing one if it's the same user.
-      const sessionResult = new this.sessionResultModel({
+      // Upsert SessionResult to avoid duplicate result documents for the same user
+      const resultDoc = {
         sessionId: new Types.ObjectId(sessionId),
         userId: new Types.ObjectId(userId),
         soulSpace: session.soulSpace,
@@ -642,9 +653,16 @@ export class UserAnswerService {
         reflectiveInsights,
         answersBreakdown,
         completedAt: new Date(),
-      });
+      };
 
-      await sessionResult.save();
+      await this.sessionResultModel.findOneAndUpdate(
+        {
+          sessionId: new Types.ObjectId(sessionId),
+          userId: new Types.ObjectId(userId),
+        },
+        resultDoc,
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
 
       return {
         sessionId,
