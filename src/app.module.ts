@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { AdminModule } from './admin/admin.module';
 import { GameSessionModule } from './game-session/game-session.module';
 import { GeminiModule } from './gemini/gemini.module';
 import { SoulSpaceModule } from './soul-space/soul-space.module';
@@ -20,12 +21,15 @@ import { NotificationsModule } from './notifications/notifications.module';
           process.env.MONGODB_URI || 'mongodb://localhost:27017/soul_card_db',
       }),
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 10, // General limit, we will override specifically if needed
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10, // General limit, we will override specifically if needed
+      },
+    ]),
     AuthModule,
     UsersModule,
+    AdminModule,
     GameSessionModule,
     GeminiModule,
     SoulSpaceModule,
