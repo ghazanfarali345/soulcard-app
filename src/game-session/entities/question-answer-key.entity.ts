@@ -21,6 +21,9 @@ export class QuestionAnswerKey extends Document {
   @Prop({ required: true })
   aiFeedback: string;
 
+  @Prop({ type: [String], default: [] })
+  spiritSuggestions: string[];
+
   @Prop({ default: Date.now })
   createdAt: Date;
 }

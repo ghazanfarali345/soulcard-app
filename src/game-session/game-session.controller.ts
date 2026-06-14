@@ -214,10 +214,11 @@ export class GameSessionController {
     const session =
       await this.gameSessionService.generateQuestionsFromSession(sessionId);
 
-    // Return only question text with question numbers for tracking
+    // Return question text, numbers, and precomputed spirit suggestions
     const questions = session.questions.map((q, index) => ({
       questionNumber: index + 1,
       question: q.question,
+      spiritSuggestions: (q as any).spiritSuggestions || [],
     }));
 
     return {

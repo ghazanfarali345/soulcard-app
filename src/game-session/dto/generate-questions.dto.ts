@@ -13,6 +13,18 @@ export class GeneratedQuestion {
     description: 'The generated question',
   })
   question: string;
+
+  @ApiProperty({
+    type: [String],
+    example: [
+      'Mention what led up to it and how you felt physically in the moment.',
+      'Give a concrete example of one action you took that made a difference.',
+      'Reflect on a lesson you learned and how it changed your behavior.',
+    ],
+    description:
+      'Array of three short supportive suggestions shown while the user types (precomputed).',
+  })
+  spiritSuggestions: string[];
 }
 
 export class GenerateQuestionsDto {

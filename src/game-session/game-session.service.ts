@@ -18,6 +18,7 @@ interface QuestionData {
   modelAnswer: string;
   scoring: Record<string, number>;
   aiFeedback: string;
+  spiritSuggestions?: string[];
 }
 
 const DIFFICULTY_DEFINITIONS = {
@@ -151,12 +152,14 @@ export class GameSessionService {
           modelAnswer: q.modelAnswer,
           scoring: q.scoring,
           aiFeedback: q.aiFeedback,
+          spiritSuggestions: q.spiritSuggestions || [],
         });
       }
 
       const simpleQuestions = fullQuestions.map((q, index) => ({
         questionNumber: index + 1,
         question: q.question,
+        spiritSuggestions: q.spiritSuggestions || [],
       }));
 
       session.questions = simpleQuestions;
@@ -218,7 +221,9 @@ SCORING:
 ${scoringFormat}
 AI FEEDBACK:
 "[2-3 sentences of qualitative feedback on what makes this response strong, highlighting the most valuable insights]"
-═══════════════════════════════════════
+SPIRIT SUGGESTIONS:
+- Provide exactly 3 short, supportive suggestions (1–2 sentences each). These are precomputed when questions are created and will be shown while the user types. Do NOT reference the user's current answer or require runtime checks. Tailor each suggestion to the question (reflective → feelings/examples/lesson; factual → reasoning/example; creative → sensory/emotional angle).
+══════════════════════════════════════
 
 QUALITY REQUIREMENTS:
 1. Each question should be:
@@ -288,6 +293,7 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
     let modelAnswer = '';
     const scoring: Record<string, number> = {};
     let aiFeedback = '';
+    let spiritSuggestions: string[] = [];
 
     let currentSection = '';
 
@@ -322,6 +328,11 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
         continue;
       }
 
+      if (line.includes('SPIRIT SUGGESTIONS:')) {
+        currentSection = 'spirit_suggestions';
+        continue;
+      }
+
       if (
         currentSection === 'question_header' &&
         line &&
@@ -338,6 +349,14 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
       } else if (currentSection === 'ai_feedback' && line && line.length > 0) {
         const cleanedLine = line.replace(/^["']|["']$/g, '');
         aiFeedback = aiFeedback ? aiFeedback + ' ' + cleanedLine : cleanedLine;
+      } else if (
+        currentSection === 'spirit_suggestions' &&
+        line &&
+        line.length > 0
+      ) {
+        // Accept lines that are numbered or prefixed with '-' or plain lines
+        const cleaned = line.replace(/^\d+\.?\s*-?\s*/g, '').replace(/^[-\*]\s*/, '').trim();
+        if (cleaned) spiritSuggestions.push(cleaned);
       }
     }
 
@@ -360,6 +379,7 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
         modelAnswer: modelAnswer.trim(),
         scoring,
         aiFeedback: aiFeedback.trim(),
+        spiritSuggestions: spiritSuggestions.slice(0, 3),
       };
     }
 
