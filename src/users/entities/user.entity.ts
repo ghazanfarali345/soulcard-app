@@ -26,6 +26,9 @@ export class User {
   @Prop({ default: true })
   isActive: boolean;
 
+  @Prop({ default: false })
+  isAdmin: boolean;
+
   @Prop({ type: String, default: null, sparse: true })
   fullName?: string | null;
 
