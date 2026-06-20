@@ -10,7 +10,13 @@ import {
 } from '@nestjs/common';
 import { UsersService } from '../../users/users.service';
 import { UpdateUserStatusDto } from '../dto/update-user-status.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiQuery,
+} from '@nestjs/swagger';
 
 @ApiTags('Admin - Users')
 @Controller('admin/users')
@@ -20,27 +26,55 @@ export class UsersAdminController {
   @Get()
   @ApiOperation({ summary: 'List users (admin)' })
   @ApiResponse({ status: 200, description: 'List of users' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search by name or email',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['active', 'inactive', 'all'],
+    description: 'Filter by status',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Results per page',
+  })
   async list(@Query() query) {
-    // Basic implementation: return all users with optional simple filtering
-    const users = await this.usersService.findAll();
-    // TODO: add pagination, search, filters
-    return { success: true, data: users };
+    const { search, status, page, limit } = query;
+
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+
+    const result = await this.usersService.findAllAdmin({
+      search,
+      status,
+      page: pageNum,
+      limit: limitNum,
+    });
+
+    return {
+      success: true,
+      data: result.data,
+      meta: { total: result.total, page: result.page, limit: result.limit },
+    };
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get user details (admin)' })
   @ApiResponse({ status: 200, description: 'User details with stats' })
   async get(@Param('id') id: string) {
-    const user = await this.usersService.findById(id);
-    if (!user) throw new NotFoundException('User not found');
-    // For admin view include gameplay-related placeholders
-    const stats = {
-      totalGamesPlayed: 0,
-      totalScore: 0,
-      highestScore: 0,
-      averageScore: 0,
-    };
-    return { success: true, data: { user, stats } };
+    const result = await this.usersService.findAdminById(id);
+    return { success: true, data: result };
   }
 
   @Patch(':id/status')
