@@ -94,11 +94,11 @@ export class UsersAdminController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Soft delete (deactivate) user' })
-  @ApiResponse({ status: 200, description: 'User deactivated (soft delete)' })
+  @ApiOperation({ summary: 'Hard delete user (permanent)' })
+  @ApiResponse({ status: 200, description: 'User permanently deleted' })
   async remove(@Param('id') id: string) {
-    // Soft delete via deactivate
-    await this.usersService.deactivateUser(id);
-    return { success: true, message: 'User deactivated (soft delete)' };
+    // Hard delete - permanently removes user from database
+    await this.usersService.hardDeleteUser(id);
+    return { success: true, message: 'User permanently deleted' };
   }
 }

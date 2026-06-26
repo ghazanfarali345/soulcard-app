@@ -327,6 +327,17 @@ export class UsersService {
   }
 
   /**
+   * Hard delete user account (permanent deletion from database)
+   */
+  async hardDeleteUser(userId: string): Promise<void> {
+    const result = await this.userModel.findByIdAndDelete(userId);
+
+    if (!result) {
+      throw new NotFoundException('User not found');
+    }
+  }
+
+  /**
    * Update user profile (username, email, and/or fullName)
    */
   async updateProfile(
