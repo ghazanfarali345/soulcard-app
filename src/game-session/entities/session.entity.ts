@@ -93,6 +93,9 @@ export class Session extends Document {
 
   @Prop({ type: Number, default: 0 })
   currentTurnIndex: number;
+
+  @Prop({ type: Boolean, default: false })
+  isLive: boolean;
 }
 
 export const SessionSchema = SchemaFactory.createForClass(Session);

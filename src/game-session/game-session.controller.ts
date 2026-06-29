@@ -33,6 +33,7 @@ import {
 import { InvitationService } from './services/invitation.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { JoinSessionDto } from './dto/join-session.dto';
+import * as jwt from 'jsonwebtoken';
 
 @ApiTags('Game Sessions')
 @ApiBearerAuth('access-token')
@@ -387,6 +388,27 @@ export class GameSessionController {
       success: true,
       message: 'Question skipped successfully',
       data,
+    };
+  }
+
+  @Get('live-session-token')
+  @UseGuards(JwtGuard)
+  @ApiSecurity('access-token')
+  @ApiOperation({
+    summary: 'Get live session token',
+    description:
+      'Generates a JWT token for live sessions using the user ID and custom secret key.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'JWT token generated successfully',
+  })
+  async getLiveSessionToken(@Req() req: any) {
+    const userId = req.user?.userId;
+    const token = jwt.sign({ user_id: userId }, "7pm7mvp44yrudpr5e6ecqf2v24qr7ennjefunfny4rjzp4hn63mrah45h8jdqdg3");
+    return {
+      success: true,
+      token,
     };
   }
 

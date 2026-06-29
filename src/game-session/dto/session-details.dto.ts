@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsNotEmpty } from 'class-validator';
+import { IsString, IsNumber, IsNotEmpty, IsBoolean, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SessionDetailsDto {
@@ -64,4 +64,14 @@ export class SessionDetailsDto {
   @IsNotEmpty()
   @IsNumber()
   noOfQuestions: number;
+
+  @ApiProperty({
+    example: false,
+    default: false,
+    description: 'Flag indicating if the session is live',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isLive?: boolean;
 }
