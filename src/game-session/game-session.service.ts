@@ -437,14 +437,24 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
     const userIds = participantsInfo.map((p) => p.userId.toString());
     const users = await this.usersService.findByIds(userIds);
     const userMap = new Map(
-      users.map((u) => [u._id.toString(), u.profileImage]),
+      users.map((u) => [u._id.toString(), {
+        profileImage: u.profileImage || null,
+        fcmToken: u.fcmToken || null,
+      }]),
     );
 
     const sessionObj = session.toObject();
-    sessionObj.participantsInfo = sessionObj.participantsInfo.map((p: any) => ({
-      ...p,
-      profileImage: userMap.get(p.userId.toString()) || null,
-    }));
+    sessionObj.participantsInfo = sessionObj.participantsInfo.map((p: any) => {
+      const userMeta = userMap.get(p.userId.toString()) || {
+        profileImage: null,
+        fcmToken: null,
+      };
+      return {
+        ...p,
+        profileImage: userMeta.profileImage,
+        deviceToken: userMeta.fcmToken,
+      };
+    });
 
     return sessionObj;
   }

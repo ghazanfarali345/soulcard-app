@@ -3,12 +3,13 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class PushNotificationDto {
   @ApiProperty({
-    description: 'Event trigger identifier (used by frontend to handle the notification)',
-    example: 'game.invite',
+    description:
+      'Event type identifier (used by frontend to handle the notification)',
+    example: 'participant_joined',
   })
   @IsString()
   @IsNotEmpty()
-  trigger: string;
+  type: string;
 
   @ApiProperty({
     description: 'Notification body text',
@@ -37,7 +38,8 @@ export class PushNotificationDto {
   token?: string;
 
   @ApiProperty({
-    description: 'Optional arbitrary data payload delivered with the notification',
+    description:
+      'Optional arbitrary data payload delivered with the notification',
     example: { gameId: 'abc123' },
     required: false,
   })
