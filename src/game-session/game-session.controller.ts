@@ -6,6 +6,7 @@ import {
   Req,
   Param,
   Get,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -161,6 +162,30 @@ export class GameSessionController {
         vibe: session.vibe,
         status: session.status,
       },
+    };
+  }
+
+  @Get('history')
+  @UseGuards(JwtGuard)
+  @ApiSecurity('access-token')
+  @ApiOperation({
+    summary: 'Get session history for current user',
+    description: 'Return all sessions where the current user is host or participant',
+  })
+  @ApiResponse({ status: 200, description: 'Session history retrieved successfully' })
+  async history(@Req() req: any, @Query('limit') limit?: string, @Query('skip') skip?: string) {
+    const userId = req.user?.userId;
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    const parsedSkip = skip ? parseInt(skip, 10) : undefined;
+    const items = await this.gameSessionService.getSessionsByUser(userId, {
+      limit: parsedLimit,
+      skip: parsedSkip,
+    });
+
+    return {
+      success: true,
+      message: 'Session history retrieved successfully',
+      data: { items },
     };
   }
 

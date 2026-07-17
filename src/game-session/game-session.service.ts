@@ -458,4 +458,59 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
 
     return sessionObj;
   }
+
+  async getSessionsByUser(
+    userId: string,
+    options: { limit?: number; skip?: number } = {},
+  ): Promise<any[]> {
+    const userObjectId = new Types.ObjectId(userId);
+    const limit = options.limit && options.limit > 0 ? options.limit : 50;
+    const skip = options.skip && options.skip > 0 ? options.skip : 0;
+
+    const sessions = await this.sessionModel
+      .find({ $or: [{ hostId: userObjectId }, { participants: userObjectId }] })
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec();
+
+    // Collect unique userIds from all sessions to enrich participant metadata in one query
+    const allUserIds = Array.from(
+      new Set(
+        sessions.flatMap((s: any) => (s.participantsInfo || []).map((p: any) => p.userId.toString())),
+      ),
+    );
+
+    const users = allUserIds.length ? await this.usersService.findByIds(allUserIds) : [];
+    const userMap = new Map(
+      users.map((u) => [u._id.toString(), { profileImage: u.profileImage || null, fcmToken: u.fcmToken || null }]),
+    );
+
+    return sessions.map((sessionObj: any) => {
+      const enrichedParticipants = (sessionObj.participantsInfo || []).map((p: any) => {
+        const userMeta = userMap.get(p.userId.toString()) || { profileImage: null, fcmToken: null };
+        return {
+          ...p,
+          profileImage: userMeta.profileImage,
+          deviceToken: userMeta.fcmToken,
+        };
+      });
+
+      return {
+        _id: sessionObj._id,
+        soulSpace: sessionObj.soulSpace,
+        vibe: sessionObj.vibe,
+        status: sessionObj.status,
+        noOfQuestions: sessionObj.noOfQuestions,
+        engagement: sessionObj.engagement,
+        engagementMode: sessionObj.engagementMode,
+        hostId: sessionObj.hostId,
+        participants: enrichedParticipants,
+        participantsInfo: enrichedParticipants,
+        createdAt: sessionObj.createdAt,
+        updatedAt: sessionObj.updatedAt,
+      };
+    });
+  }
 }
