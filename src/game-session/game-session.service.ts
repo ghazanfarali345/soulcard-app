@@ -88,12 +88,12 @@ export class GameSessionService {
       throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
     }
 
-    const allowedChars =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_+=';
+    const codeLength = 6;
+
     let code = '';
-    const bytes = crypto.randomBytes(12);
-    for (let i = 0; i < 12; i++) {
-      code += allowedChars[bytes[i] % allowedChars.length];
+    const bytes = crypto.randomBytes(codeLength);
+    for (let i = 0; i < codeLength; i++) {
+      code += (bytes[i] % 10).toString();
     }
 
     const ttl = parseInt(process.env.JOIN_CODE_TTL_MINUTES || '15', 10);
