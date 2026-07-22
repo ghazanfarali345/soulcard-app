@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Session, SessionStatus } from './entities/session.entity';
 import { QuestionAnswerKey } from './entities/question-answer-key.entity';
+import { UserAnswer } from './entities/user-answer.entity';
 import { SessionDetailsDto } from './dto/session-details.dto';
 import { GeminiService } from '../gemini/gemini.service';
 import * as crypto from 'crypto';
@@ -53,6 +54,7 @@ export class GameSessionService {
     private questionAnswerKeyModel: Model<QuestionAnswerKey>,
     private geminiService: GeminiService,
     private usersService: UsersService,
+    @InjectModel(UserAnswer.name) private userAnswerModel: Model<UserAnswer>,
   ) {}
 
   async createSessionDetails(
@@ -475,6 +477,35 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
       .lean()
       .exec();
 
+    const sessionIds = sessions.map((session: any) => session._id);
+    const answers = sessionIds.length
+      ? await this.userAnswerModel
+          .find({ sessionId: { $in: sessionIds } })
+          .sort({ questionNumber: 1 })
+          .lean()
+          .exec()
+      : [];
+
+    const answersBySession = answers.reduce((acc: Record<string, any[]>, answer: any) => {
+      const sessionId = answer.sessionId?.toString();
+      if (!sessionId) {
+        return acc;
+      }
+
+      if (!acc[sessionId]) {
+        acc[sessionId] = [];
+      }
+
+      acc[sessionId].push({
+        questionNumber: answer.questionNumber,
+        question: answer.question,
+        answer: answer.userAnswer,
+        modelAnswer: answer.modelAnswer,
+      });
+
+      return acc;
+    }, {});
+
     // Collect unique userIds from all sessions to enrich participant metadata in one query
     const allUserIds = Array.from(
       new Set(
@@ -508,6 +539,8 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
         hostId: sessionObj.hostId,
         participants: enrichedParticipants,
         participantsInfo: enrichedParticipants,
+        questions: sessionObj.questions || [],
+        questionAnswers: answersBySession[sessionObj._id?.toString()] || [],
         createdAt: sessionObj.createdAt,
         updatedAt: sessionObj.updatedAt,
       };
