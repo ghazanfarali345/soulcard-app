@@ -170,10 +170,123 @@ export class GameSessionController {
   @ApiSecurity('access-token')
   @ApiOperation({
     summary: 'Get session history for current user',
-    description: 'Return all sessions where the current user is host or participant',
+    description:
+      'Return all sessions where the current user is host or participant',
   })
-  @ApiResponse({ status: 200, description: 'Session history retrieved successfully' })
-  async history(@Req() req: any, @Query('limit') limit?: string, @Query('skip') skip?: string) {
+  @ApiResponse({
+    status: 200,
+    description: 'Session history retrieved successfully',
+    schema: {
+      example: {
+        success: true,
+        message: 'Session history retrieved successfully',
+        data: {
+          items: [
+            {
+              sessionId: '507f1f77bcf86cd799439011',
+              soulSpace: 'Reflection',
+              vibe: 'Calm',
+              status: 'COMPLETED',
+              noOfQuestions: 5,
+              engagement: 'guided',
+              engagementMode: 'self',
+              hostId: '507f1f77bcf86cd799439012',
+              participants: [
+                {
+                  userId: '507f1f77bcf86cd799439012',
+                  displayName: 'Host',
+                },
+              ],
+              questions: [
+                {
+                  questionNumber: 1,
+                  question:
+                    'What is the most important thing you learned about yourself?',
+                },
+              ],
+              questionAnswers: [
+                {
+                  questionNumber: 1,
+                  question:
+                    'What is the most important thing you learned about yourself?',
+                  answer: 'That I am more patient than I used to be',
+                  modelAnswer:
+                    'You should honor this awareness and keep practicing',
+                },
+              ],
+              finalResults: {
+                sessionId: '507f1f77bcf86cd799439011',
+                status: 'COMPLETED',
+                soulSpace: 'Reflection',
+                vibe: 'Calm',
+                totalParticipants: 1,
+                results: [
+                  {
+                    userId: '507f1f77bcf86cd799439012',
+                    displayName: 'Host',
+                    profileImage: null,
+                    finalResults: {
+                      overallScore: 79,
+                      metrics: {
+                        reflective: 16,
+                        coherence: 18,
+                        openness: 15,
+                        authenticity: 17,
+                      },
+                    },
+                    reflectiveInsights: {
+                      reflectiveStrengths:
+                        'You showed up and participated, which is the most important step!',
+                      deepeningAwareness:
+                        'To enhance your self-awareness, consider focusing on Reflective Depth...',
+                      whatThisMeans:
+                        'Your responses demonstrate authentic self-awareness...',
+                      nextBestAction:
+                        'Continue holding space for what arises...',
+                      personalizedRecommendations: [
+                        'Begin with short, simple reflections',
+                        'Read reflective essays',
+                      ],
+                    },
+                    answersBreakdown: [
+                      {
+                        questionNumber: 1,
+                        question:
+                          'What is the most important thing you learned about yourself?',
+                        userAnswer: 'That I am more patient than I used to be',
+                        modelAnswer:
+                          'You should honor this awareness and keep practicing',
+                        score: {
+                          similarityScore: 78,
+                          metrics: {
+                            reflective: 16,
+                            coherence: 18,
+                            openness: 15,
+                            authenticity: 17,
+                          },
+                          guidedInsight:
+                            'Your response demonstrates strong reflection on the topic.',
+                          constructiveFeedback:
+                            'Consider naming one specific behavior you will continue.',
+                        },
+                      },
+                    ],
+                    answersSubmitted: 5,
+                    completedAt: '2026-07-24T12:00:00.000Z',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    },
+  })
+  async history(
+    @Req() req: any,
+    @Query('limit') limit?: string,
+    @Query('skip') skip?: string,
+  ) {
     const userId = req.user?.userId;
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
     const parsedSkip = skip ? parseInt(skip, 10) : undefined;
@@ -182,10 +295,26 @@ export class GameSessionController {
       skip: parsedSkip,
     });
 
+    const itemsWithFinalResults = await Promise.all(
+      items.map(async (item: any) => {
+        const finalResults =
+          await this.userAnswerService.getSessionFinalResults(
+            item._id?.toString(),
+            userId,
+          );
+
+        return {
+          ...item,
+          sessionId: item._id?.toString(),
+          finalResults,
+        };
+      }),
+    );
+
     return {
       success: true,
       message: 'Session history retrieved successfully',
-      data: { items },
+      data: { items: itemsWithFinalResults },
     };
   }
 
@@ -430,7 +559,10 @@ export class GameSessionController {
   })
   async getLiveSessionToken(@Req() req: any) {
     const userId = req.user?.userId;
-    const token = jwt.sign({ user_id: userId }, "7pm7mvp44yrudpr5e6ecqf2v24qr7ennjefunfny4rjzp4hn63mrah45h8jdqdg3");
+    const token = jwt.sign(
+      { user_id: userId },
+      '7pm7mvp44yrudpr5e6ecqf2v24qr7ennjefunfny4rjzp4hn63mrah45h8jdqdg3',
+    );
     return {
       success: true,
       token,
