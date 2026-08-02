@@ -143,7 +143,7 @@ export class GameSessionController {
   @ApiOperation({
     summary: 'Join Session with OTP',
     description:
-      'Join an existing multiplayer session using a 12-character OTP join code.',
+      'Join an existing multiplayer session using a 6-digit numeric OTP join code.',
   })
   @ApiBody({ type: JoinSessionDto })
   async joinSession(@Req() req: any, @Body() dto: JoinSessionDto) {

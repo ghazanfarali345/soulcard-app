@@ -3,14 +3,16 @@ import { IsNotEmpty, IsString, Length } from 'class-validator';
 
 export class JoinSessionDto {
   @ApiProperty({
-    description: '12-character OTP join code',
-    example: 'ABC123!@#456',
-    minLength: 12,
-    maxLength: 12,
+    description: '6-digit numeric OTP join code',
+    example: '123456',
+    minLength: 6,
+    maxLength: 6,
   })
   @IsNotEmpty()
   @IsString()
-  @Length(12, 12, { message: 'Join code must be exactly 12 characters' })
+  @Length(6, 6, { message: 'Join code must be exactly 6 characters' })
+  // Ensure it's numeric digits only
+  // (validation on server will also check existence/expiry)
   code: string;
 
   @ApiProperty({

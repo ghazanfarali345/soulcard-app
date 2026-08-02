@@ -335,7 +335,12 @@ export class AuthController {
         fileSize: 5 * 1024 * 1024, // 5MB limit
       },
       fileFilter: (req, file, cb) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+        const allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        const orig = file.originalname || '';
+        const ext = (orig.split('.').pop() || '').toLowerCase();
+        const isImageMime = typeof file.mimetype === 'string' && file.mimetype.startsWith('image/');
+        if (!isImageMime || !allowedExts.includes(ext)) {
+          console.log(`DEBUG: rejected upload - name='${orig}' ext='${ext}' mimetype='${file.mimetype}'`);
           return cb(new BadRequestException('Only image files are allowed!'), false);
         }
         cb(null, true);
@@ -351,7 +356,7 @@ export class AuthController {
     console.log('DEBUG: editProfile called for user:', req.user.userId);
     console.log('DEBUG: profileImage present:', !!profileImage);
     let imageUrl: string | undefined = undefined;
-    
+
     if (profileImage) {
       try {
         const uploadsDir = join(process.cwd(), 'uploads', 'profiles');
@@ -362,7 +367,9 @@ export class AuthController {
         fs.writeFileSync(savedPath, profileImage.buffer);
         imageUrl = `/uploads/profiles/${fileName}`;
       } catch (error) {
-        throw new BadRequestException(`Failed to save profile image: ${error.message}`);
+        throw new BadRequestException(
+          `Failed to save profile image: ${error.message}`,
+        );
       }
     }
 
