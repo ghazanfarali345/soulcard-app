@@ -14,7 +14,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { extname } from 'path';
+import * as fs from 'fs';
+import { extname, join } from 'path';
 import {
   ApiTags,
   ApiOperation,
@@ -37,15 +38,12 @@ import {
 import { RefreshTokenDto } from './dto/auth-response.dto';
 import { JwtGuard } from './guards/jwt.guard';
 
-import { SupabaseService } from '../common/services/supabase.service';
+// Supabase removed: images saved to local `uploads` directory
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly supabaseService: SupabaseService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   /**
    * POST /auth/login
@@ -356,11 +354,15 @@ export class AuthController {
     
     if (profileImage) {
       try {
-        // Upload to the configured Supabase bucket
-        const bucket = process.env.SUPABASE_BUCKET || 'profiles';
-        imageUrl = await this.supabaseService.uploadImage(profileImage, bucket);
+        const uploadsDir = join(process.cwd(), 'uploads', 'profiles');
+        fs.mkdirSync(uploadsDir, { recursive: true });
+        const fileExt = extname(profileImage.originalname) || '';
+        const fileName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${fileExt}`;
+        const savedPath = join(uploadsDir, fileName);
+        fs.writeFileSync(savedPath, profileImage.buffer);
+        imageUrl = `/uploads/profiles/${fileName}`;
       } catch (error) {
-        throw new BadRequestException(`Failed to upload image to Supabase: ${error.message}`);
+        throw new BadRequestException(`Failed to save profile image: ${error.message}`);
       }
     }
 

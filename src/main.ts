@@ -10,7 +10,6 @@ import * as dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 console.log('DEBUG: .env loaded. MONGODB_URI length:', process.env.MONGODB_URI?.length || 0);
-console.log('DEBUG: .env loaded. SUPABASE_URL length:', process.env.SUPABASE_URL?.length || 0);
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
