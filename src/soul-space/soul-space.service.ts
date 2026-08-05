@@ -13,12 +13,33 @@ export class SoulSpaceService {
     private soulSpaceModel: Model<SoulSpaceDocument>,
   ) {}
 
+  private sanitizeUpdatePayload(updateSoulSpaceDto: UpdateSoulSpaceDto) {
+    return Object.entries(updateSoulSpaceDto).reduce(
+      (cleaned, [key, value]) => {
+        if (value === undefined || value === null) {
+          return cleaned;
+        }
+        if (typeof value === 'string' && value.trim() === '') {
+          return cleaned;
+        }
+        if (Array.isArray(value) && value.length === 0) {
+          return cleaned;
+        }
+        cleaned[key] = value;
+        return cleaned;
+      },
+      {} as Partial<UpdateSoulSpaceDto>,
+    );
+  }
+
   async create(createSoulSpaceDto: CreateSoulSpaceDto): Promise<SoulSpace> {
     const createdSoulSpace = new this.soulSpaceModel(createSoulSpaceDto);
     return createdSoulSpace.save();
   }
 
-  async bulkCreate(bulkCreateDto: BulkCreateSoulSpaceDto): Promise<SoulSpace[]> {
+  async bulkCreate(
+    bulkCreateDto: BulkCreateSoulSpaceDto,
+  ): Promise<SoulSpace[]> {
     return this.soulSpaceModel.insertMany(bulkCreateDto.data);
   }
 
@@ -38,8 +59,9 @@ export class SoulSpaceService {
     id: string,
     updateSoulSpaceDto: UpdateSoulSpaceDto,
   ): Promise<SoulSpace> {
+    const sanitizedPayload = this.sanitizeUpdatePayload(updateSoulSpaceDto);
     const existingSoulSpace = await this.soulSpaceModel
-      .findByIdAndUpdate(id, updateSoulSpaceDto, { new: true })
+      .findByIdAndUpdate(id, sanitizedPayload, { new: true })
       .exec();
     if (!existingSoulSpace) {
       throw new NotFoundException(`SoulSpace with ID "${id}" not found`);
