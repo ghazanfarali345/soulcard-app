@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtGuard } from './guards/jwt.guard';
+import { AdminGuard } from './guards/admin.guard';
 import { UsersModule } from '../users/users.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PendingUser, PendingUserSchema } from './entities/pending-user.entity';
@@ -22,7 +23,7 @@ import { PendingUser, PendingUserSchema } from './entities/pending-user.entity';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtGuard],
-  exports: [AuthService, JwtGuard],
+  providers: [AuthService, JwtStrategy, JwtGuard, AdminGuard],
+  exports: [AuthService, JwtGuard, AdminGuard],
 })
 export class AuthModule {}
