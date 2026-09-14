@@ -45,8 +45,11 @@ describe('GameSessionService.getSessionsByUser', () => {
       { find: jest.fn().mockReturnValue(sessionQuery) } as any,
       {} as any,
       {} as any,
-      { findByIds: jest.fn<() => Promise<any[]>>().mockResolvedValue([]) } as any,
+      {
+        findByIds: jest.fn<() => Promise<any[]>>().mockResolvedValue([]),
+      } as any,
       { find: jest.fn().mockReturnValue(userAnswerQuery) } as any,
+      {} as any,
     );
 
     const result = await service.getSessionsByUser('507f1f77bcf86cd799439011');

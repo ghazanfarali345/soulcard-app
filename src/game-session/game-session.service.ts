@@ -7,6 +7,7 @@ import { UserAnswer } from './entities/user-answer.entity';
 import { SessionDetailsDto } from './dto/session-details.dto';
 import { GeminiService } from '../gemini/gemini.service';
 import * as crypto from 'crypto';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   EngagementMode,
   ENGAGEMENT_MODE_CONFIG,
@@ -55,6 +56,7 @@ export class GameSessionService {
     private geminiService: GeminiService,
     private usersService: UsersService,
     @InjectModel(UserAnswer.name) private userAnswerModel: Model<UserAnswer>,
+    private notificationsService: NotificationsService,
   ) {}
 
   async createSessionDetails(
@@ -86,6 +88,12 @@ export class GameSessionService {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) {
       throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
+    }
+    if (session.status === SessionStatus.COMPLETED) {
+      throw new HttpException(
+        'This session has ended and is no longer accepting players',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const codeLength = 6;
@@ -357,7 +365,10 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
         line.length > 0
       ) {
         // Accept lines that are numbered or prefixed with '-' or plain lines
-        const cleaned = line.replace(/^\d+\.?\s*-?\s*/g, '').replace(/^[-\*]\s*/, '').trim();
+        const cleaned = line
+          .replace(/^\d+\.?\s*-?\s*/g, '')
+          .replace(/^[-\*]\s*/, '')
+          .trim();
         if (cleaned) spiritSuggestions.push(cleaned);
       }
     }
@@ -394,6 +405,15 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
       throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
     }
 
+    const isHost = session.hostId.toString() === userId;
+
+    if (isHost) {
+      session.status = SessionStatus.COMPLETED;
+      const savedSession = await session.save();
+      await this.notifySessionEnded(savedSession, true);
+      return savedSession;
+    }
+
     // Find the participant in participantsInfo
     const participantIndex = session.participantsInfo.findIndex(
       (p) => p.userId.toString() === userId,
@@ -426,7 +446,46 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
       session.status = SessionStatus.COMPLETED;
     }
 
-    return await session.save();
+    const savedSession = await session.save();
+    if (savedSession.status === SessionStatus.COMPLETED) {
+      await this.notifySessionEnded(savedSession, false);
+    }
+
+    return savedSession;
+  }
+
+  private async notifySessionEnded(
+    session: Session,
+    endedByHost: boolean,
+  ): Promise<void> {
+    try {
+      const participantIds = session.participants.map((id) => id.toString());
+      const recipients = await this.usersService.findByIds(participantIds);
+
+      await Promise.allSettled(
+        recipients
+          .filter((user) => user.fcmToken)
+          .map((user) =>
+            this.notificationsService.sendPushNotification(
+              user.fcmToken!,
+              'Session ended',
+              endedByHost
+                ? 'The host has ended the Soul Card session.'
+                : 'All participants have completed the Soul Card session.',
+              {
+                type: 'session_ended',
+                sessionId: session._id.toString(),
+                endedByHost: String(endedByHost),
+              },
+            ),
+          ),
+      );
+    } catch (error) {
+      console.error(
+        'Failed to send session-ended notifications:',
+        error.message,
+      );
+    }
   }
 
   async getSessionById(sessionId: string): Promise<any> {
@@ -439,10 +498,13 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
     const userIds = participantsInfo.map((p) => p.userId.toString());
     const users = await this.usersService.findByIds(userIds);
     const userMap = new Map(
-      users.map((u) => [u._id.toString(), {
-        profileImage: u.profileImage || null,
-        fcmToken: u.fcmToken || null,
-      }]),
+      users.map((u) => [
+        u._id.toString(),
+        {
+          profileImage: u.profileImage || null,
+          fcmToken: u.fcmToken || null,
+        },
+      ]),
     );
 
     const sessionObj = session.toObject();
@@ -486,47 +548,62 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
           .exec()
       : [];
 
-    const answersBySession = answers.reduce((acc: Record<string, any[]>, answer: any) => {
-      const sessionId = answer.sessionId?.toString();
-      if (!sessionId) {
+    const answersBySession = answers.reduce(
+      (acc: Record<string, any[]>, answer: any) => {
+        const sessionId = answer.sessionId?.toString();
+        if (!sessionId) {
+          return acc;
+        }
+
+        if (!acc[sessionId]) {
+          acc[sessionId] = [];
+        }
+
+        acc[sessionId].push({
+          questionNumber: answer.questionNumber,
+          question: answer.question,
+          answer: answer.userAnswer,
+          modelAnswer: answer.modelAnswer,
+        });
+
         return acc;
-      }
-
-      if (!acc[sessionId]) {
-        acc[sessionId] = [];
-      }
-
-      acc[sessionId].push({
-        questionNumber: answer.questionNumber,
-        question: answer.question,
-        answer: answer.userAnswer,
-        modelAnswer: answer.modelAnswer,
-      });
-
-      return acc;
-    }, {});
+      },
+      {},
+    );
 
     // Collect unique userIds from all sessions to enrich participant metadata in one query
     const allUserIds = Array.from(
       new Set(
-        sessions.flatMap((s: any) => (s.participantsInfo || []).map((p: any) => p.userId.toString())),
+        sessions.flatMap((s: any) =>
+          (s.participantsInfo || []).map((p: any) => p.userId.toString()),
+        ),
       ),
     );
 
-    const users = allUserIds.length ? await this.usersService.findByIds(allUserIds) : [];
+    const users = allUserIds.length
+      ? await this.usersService.findByIds(allUserIds)
+      : [];
     const userMap = new Map(
-      users.map((u) => [u._id.toString(), { profileImage: u.profileImage || null, fcmToken: u.fcmToken || null }]),
+      users.map((u) => [
+        u._id.toString(),
+        { profileImage: u.profileImage || null, fcmToken: u.fcmToken || null },
+      ]),
     );
 
     return sessions.map((sessionObj: any) => {
-      const enrichedParticipants = (sessionObj.participantsInfo || []).map((p: any) => {
-        const userMeta = userMap.get(p.userId.toString()) || { profileImage: null, fcmToken: null };
-        return {
-          ...p,
-          profileImage: userMeta.profileImage,
-          deviceToken: userMeta.fcmToken,
-        };
-      });
+      const enrichedParticipants = (sessionObj.participantsInfo || []).map(
+        (p: any) => {
+          const userMeta = userMap.get(p.userId.toString()) || {
+            profileImage: null,
+            fcmToken: null,
+          };
+          return {
+            ...p,
+            profileImage: userMeta.profileImage,
+            deviceToken: userMeta.fcmToken,
+          };
+        },
+      );
 
       return {
         _id: sessionObj._id,

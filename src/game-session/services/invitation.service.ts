@@ -2,7 +2,7 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Invitation } from '../entities/invitation.entity';
-import { Session } from '../entities/session.entity';
+import { Session, SessionStatus } from '../entities/session.entity';
 import { GameSessionService } from '../game-session.service';
 import { TwilioService } from './twilio.service';
 import { NodemailerService } from '../../email/nodemailer.service';
@@ -34,7 +34,10 @@ export class InvitationService {
     }
 
     if (session.hostId.toString() !== hostId) {
-      throw new HttpException('Only the host can invite players', HttpStatus.FORBIDDEN);
+      throw new HttpException(
+        'Only the host can invite players',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     // Generate or get existing valid join code
@@ -55,7 +58,7 @@ export class InvitationService {
 
     // Send invitation
     const messageBody = `You are invited to join a Soul Card session. Use code ${code} in the app to join. (Expires in ${ttl} minutes)`;
-    
+
     if (phone) {
       await this.twilioService.sendSms(phone, messageBody);
     }
@@ -76,6 +79,13 @@ export class InvitationService {
   ): Promise<Session> {
     // Validate join code and get session
     const session = await this.gameSessionService.validateJoinCode(code);
+    if (session.status === SessionStatus.COMPLETED) {
+      throw new HttpException(
+        'This session has ended and is no longer accepting players',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const userObjectId = new Types.ObjectId(userId);
 
     // Check if user is already a participant
@@ -111,7 +121,9 @@ export class InvitationService {
       }
     } else {
       // Update display name if already participant
-      const info = session.participantsInfo.find((p) => p.userId.toString() === userId);
+      const info = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
       if (info) {
         info.displayName = displayName;
       } else {
@@ -139,7 +151,7 @@ export class InvitationService {
         const joiningUser = await this.usersService.findById(userId);
         const title = 'Someone joined your session!';
         const body = `${displayName} (${joiningUser?.username || 'New Player'}) has joined your Soul Card session.`;
-        
+
         await this.notificationsService.sendPushNotification(
           host.fcmToken,
           title,
@@ -155,7 +167,7 @@ export class InvitationService {
               isCompleted: false,
               profileImage: joiningUser?.profileImage || null,
             }),
-          }
+          },
         );
       }
     } catch (error) {
