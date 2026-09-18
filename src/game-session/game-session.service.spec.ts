@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { GameSessionService } from './game-session.service';
 
-describe('GameSessionService.getSessionsByUser', () => {
+describe('GameSessionService', () => {
   it('returns questions and submitted answers for each session history item', async () => {
     const sessionQuery = {
       sort: jest.fn().mockReturnThis(),
@@ -65,5 +65,45 @@ describe('GameSessionService.getSessionsByUser', () => {
         modelAnswer: 'To learn more about your inner world',
       },
     ]);
+  });
+
+  it('ends the session and notifies everyone when a non-host participant ends it', async () => {
+    const session = {
+      _id: 'session-1',
+      hostId: 'host-1',
+      participants: ['host-1', 'user-2', 'user-1'],
+      participantsInfo: [
+        { userId: 'host-1', displayName: 'Host', isCompleted: false },
+        { userId: 'user-2', displayName: 'Player 2', isCompleted: false },
+        { userId: 'user-1', displayName: 'Player 1', isCompleted: false },
+      ],
+      status: 'QUESTIONS_GENERATED',
+      save: jest.fn(async function () {
+        return this;
+      }),
+    };
+
+    const sendPushNotification = jest.fn(async () => undefined);
+
+    const service = new GameSessionService(
+      { findById: jest.fn(async () => session) } as any,
+      { countDocuments: jest.fn(async () => 0) } as any,
+      {} as any,
+      {
+        findByIds: jest.fn(async () => [
+          { _id: 'host-1', fcmToken: 'host-token' },
+          { _id: 'user-2', fcmToken: 'guest-token' },
+          { _id: 'user-1', fcmToken: 'player-token' },
+        ]),
+      } as any,
+      {} as any,
+      { sendPushNotification } as any,
+    );
+
+    const result = await service.endSession('session-1', 'user-1');
+
+    expect(result.status).toBe('COMPLETED');
+    expect(result.participantsInfo[2].isCompleted).toBe(true);
+    expect(sendPushNotification).toHaveBeenCalled();
   });
 });

@@ -406,38 +406,50 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
     }
 
     const isHost = session.hostId.toString() === userId;
-
-    if (isHost) {
-      session.status = SessionStatus.COMPLETED;
-      const savedSession = await session.save();
-      await this.notifySessionEnded(savedSession, true);
-      return savedSession;
-    }
-
-    // Find the participant in participantsInfo
-    const participantIndex = session.participantsInfo.findIndex(
-      (p) => p.userId.toString() === userId,
+    const isParticipant = session.participants.some(
+      (participantId) => participantId.toString() === userId,
     );
 
-    if (participantIndex === -1) {
-      // If not in participantsInfo (like a host who hasn't formally joined as a player yet)
-      session.participantsInfo.push({
-        userId: new Types.ObjectId(userId),
-        displayName: 'Player', // Fallback
-        answersSubmitted: await this.questionAnswerKeyModel.countDocuments({
-          sessionId: new Types.ObjectId(sessionId),
-        }), // This count logic might need adjustment but usually we'd have them in info
-        skippedQuestions: [],
-        isCompleted: true,
-      });
-    } else {
-      if (session.participantsInfo[participantIndex].isCompleted) {
-        throw new HttpException(
-          'You have already completed this session',
-          HttpStatus.BAD_REQUEST,
-        );
+    if (!isHost && !isParticipant) {
+      throw new HttpException(
+        'You are not a participant in this session',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (isHost || isParticipant) {
+      session.status = SessionStatus.COMPLETED;
+
+      const participantIndex = session.participantsInfo.findIndex(
+        (p) => p.userId.toString() === userId,
+      );
+
+      if (participantIndex === -1) {
+        session.participantsInfo.push({
+          userId: new Types.ObjectId(userId),
+          displayName: 'Player',
+          answersSubmitted: await this.questionAnswerKeyModel.countDocuments({
+            sessionId: new Types.ObjectId(sessionId),
+          }),
+          skippedQuestions: [],
+          isCompleted: true,
+        });
+      } else {
+        if (session.participantsInfo[participantIndex].isCompleted) {
+          throw new HttpException(
+            'You have already completed this session',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        session.participantsInfo[participantIndex].isCompleted = true;
       }
-      session.participantsInfo[participantIndex].isCompleted = true;
+
+      const savedSession = await session.save();
+      await this.notifySessionEnded(
+        savedSession,
+        isHost ? 'host' : 'participant',
+      );
+      return savedSession;
     }
 
     // Check if ALL participants have completed
@@ -448,7 +460,7 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
 
     const savedSession = await session.save();
     if (savedSession.status === SessionStatus.COMPLETED) {
-      await this.notifySessionEnded(savedSession, false);
+      await this.notifySessionEnded(savedSession, 'completed');
     }
 
     return savedSession;
@@ -456,11 +468,18 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
 
   private async notifySessionEnded(
     session: Session,
-    endedByHost: boolean,
+    endedBy: 'host' | 'participant' | 'completed',
   ): Promise<void> {
     try {
       const participantIds = session.participants.map((id) => id.toString());
       const recipients = await this.usersService.findByIds(participantIds);
+
+      const message =
+        endedBy === 'host'
+          ? 'The host has ended the Soul Card session.'
+          : endedBy === 'participant'
+            ? 'A participant has ended the Soul Card session.'
+            : 'All participants have completed the Soul Card session.';
 
       await Promise.allSettled(
         recipients
@@ -469,13 +488,16 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
             this.notificationsService.sendPushNotification(
               user.fcmToken!,
               'Session ended',
-              endedByHost
-                ? 'The host has ended the Soul Card session.'
-                : 'All participants have completed the Soul Card session.',
+              message,
               {
                 type: 'session_ended',
                 sessionId: session._id.toString(),
-                endedByHost: String(endedByHost),
+                endedBy:
+                  endedBy === 'host'
+                    ? 'host'
+                    : endedBy === 'participant'
+                      ? 'participant'
+                      : 'all_completed',
               },
             ),
           ),
