@@ -183,6 +183,7 @@ export class UsersService {
       password,
       termsAccepted,
       fcmToken,
+      fcmTokens: fcmToken ? [fcmToken] : [],
       profileImage,
       isActive: true,
     });
@@ -216,6 +217,31 @@ export class UsersService {
    */
   async findByIds(ids: string[]): Promise<UserDocument[]> {
     return this.userModel.find({ _id: { $in: ids } }).exec();
+  }
+
+  getFcmTokens(user: {
+    fcmToken?: string | null;
+    fcmTokens?: string[];
+  }): string[] {
+    return Array.from(
+      new Set([...(user.fcmTokens || []), user.fcmToken].filter(Boolean)),
+    ) as string[];
+  }
+
+  async addFcmToken(userId: string, fcmToken: string): Promise<UserDocument> {
+    const user = await this.userModel.findByIdAndUpdate(
+      userId,
+      {
+        $addToSet: { fcmTokens: fcmToken },
+      },
+      { new: true },
+    );
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
   }
 
   /**
@@ -394,7 +420,11 @@ export class UsersService {
 
     // Update fcmToken if provided
     if (updateData.fcmToken !== undefined) {
+      const fcmTokens = this.getFcmTokens(user);
       user.fcmToken = updateData.fcmToken || null;
+      user.fcmTokens = updateData.fcmToken
+        ? Array.from(new Set([...fcmTokens, updateData.fcmToken]))
+        : [];
     }
 
     return user.save();

@@ -2,6 +2,71 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { GameSessionService } from './game-session.service';
 
 describe('GameSessionService', () => {
+  it('persists timerSeconds from the session details DTO', async () => {
+    const sessionData = {
+      soulSpace: 'Reflection',
+      vibe: 'Calm',
+      noOfPlayers: 1,
+      difficultyLevel: 'Seeker',
+      engagementMode: 'Reflective',
+      engagement: 'guided',
+      noOfQuestions: 3,
+      timerSeconds: 60,
+    };
+    const save = jest.fn(async function (this: any) {
+      return this;
+    });
+    const sessionModel = jest
+      .fn<(data: any) => any>()
+      .mockImplementation((data) => ({
+        ...data,
+        save,
+      }));
+    const service = new GameSessionService(
+      sessionModel as any,
+      {} as any,
+      {} as any,
+      {
+        findById: jest
+          .fn<() => Promise<any>>()
+          .mockResolvedValue({ username: 'Host' }),
+      } as any,
+      {} as any,
+      {} as any,
+    );
+
+    await service.createSessionDetails('507f1f77bcf86cd799439011', sessionData);
+
+    expect(sessionModel).toHaveBeenCalledWith(
+      expect.objectContaining({ timerSeconds: 60 }),
+    );
+    expect(save).toHaveBeenCalled();
+  });
+
+  it('returns timerSeconds in session details', async () => {
+    const session = {
+      participantsInfo: [],
+      timerSeconds: 60,
+      toObject: () => ({ participantsInfo: [], timerSeconds: 60 }),
+    };
+    const service = new GameSessionService(
+      {
+        findById: jest.fn<() => Promise<any>>().mockResolvedValue(session),
+      } as any,
+      {} as any,
+      {} as any,
+      {
+        findByIds: jest.fn<() => Promise<any[]>>().mockResolvedValue([]),
+      } as any,
+      {} as any,
+      {} as any,
+    );
+
+    const result = await service.getSessionById('session-1');
+
+    expect(result.timerSeconds).toBe(60);
+  });
+
   it('returns questions and submitted answers for each session history item', async () => {
     const sessionQuery = {
       sort: jest.fn().mockReturnThis(),
@@ -83,7 +148,9 @@ describe('GameSessionService', () => {
       }),
     };
 
-    const sendPushNotification = jest.fn(async () => undefined);
+    const sendPushNotification = jest.fn<
+      (token: string, title: string, body: string, data?: any) => Promise<void>
+    >(async () => undefined);
 
     const service = new GameSessionService(
       { findById: jest.fn(async () => session) } as any,
@@ -91,10 +158,18 @@ describe('GameSessionService', () => {
       {} as any,
       {
         findByIds: jest.fn(async () => [
-          { _id: 'host-1', fcmToken: 'host-token' },
+          {
+            _id: 'host-1',
+            fcmToken: 'host-token',
+            fcmTokens: ['host-token', 'host-token-2'],
+          },
           { _id: 'user-2', fcmToken: 'guest-token' },
           { _id: 'user-1', fcmToken: 'player-token' },
         ]),
+        getFcmTokens: (user: any) =>
+          Array.from(
+            new Set([...(user.fcmTokens || []), user.fcmToken].filter(Boolean)),
+          ),
       } as any,
       {} as any,
       { sendPushNotification } as any,
@@ -104,6 +179,14 @@ describe('GameSessionService', () => {
 
     expect(result.status).toBe('COMPLETED');
     expect(result.participantsInfo[2].isCompleted).toBe(true);
-    expect(sendPushNotification).toHaveBeenCalled();
+    expect(sendPushNotification).toHaveBeenCalledTimes(4);
+    expect(sendPushNotification.mock.calls.map(([token]) => token)).toEqual(
+      expect.arrayContaining([
+        'host-token',
+        'host-token-2',
+        'guest-token',
+        'player-token',
+      ]),
+    );
   });
 });

@@ -147,27 +147,26 @@ export class InvitationService {
     // Send push notification to host
     try {
       const host = await this.usersService.findById(session.hostId.toString());
-      if (host && host.fcmToken) {
+      if (host) {
         const joiningUser = await this.usersService.findById(userId);
         const title = 'Someone joined your session!';
         const body = `${displayName} (${joiningUser?.username || 'New Player'}) has joined your Soul Card session.`;
 
-        await this.notificationsService.sendPushNotification(
-          host.fcmToken,
-          title,
-          body,
-          {
-            type: 'participant_joined',
-            sessionId: session._id.toString(),
-            participantInfo: JSON.stringify({
-              userId: userId,
-              displayName: displayName,
-              answersSubmitted: 0,
-              skippedQuestions: [],
-              isCompleted: false,
-              profileImage: joiningUser?.profileImage || null,
+        await Promise.allSettled(
+          this.usersService.getFcmTokens(host).map((token) =>
+            this.notificationsService.sendPushNotification(token, title, body, {
+              type: 'participant_joined',
+              sessionId: session._id.toString(),
+              participantInfo: JSON.stringify({
+                userId: userId,
+                displayName: displayName,
+                answersSubmitted: 0,
+                skippedQuestions: [],
+                isCompleted: false,
+                profileImage: joiningUser?.profileImage || null,
+              }),
             }),
-          },
+          ),
         );
       }
     } catch (error) {

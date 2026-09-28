@@ -75,6 +75,7 @@ export class GameSessionController {
           engagementMode: 'Reflective',
           engagement: 'guided',
           noOfQuestions: 5,
+          timerSeconds: 60,
           createdAt: '2026-04-19T10:30:00.000Z',
           updatedAt: '2026-04-19T10:30:00.000Z',
         },

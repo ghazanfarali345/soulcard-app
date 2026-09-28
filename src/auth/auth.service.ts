@@ -9,13 +9,22 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { LoginDto, SignupDto, ForgotPasswordDto, VerifyEmailDto, ResendOtpDto } from './dto';
+import {
+  LoginDto,
+  SignupDto,
+  ForgotPasswordDto,
+  VerifyEmailDto,
+  ResendOtpDto,
+} from './dto';
 import { RefreshTokenDto, JwtPayload } from './dto/auth-response.dto';
 import { EditProfileDto } from './dto/edit-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UsersService } from '../users/users.service';
-import { PendingUser, PendingUserDocument } from './entities/pending-user.entity';
+import {
+  PendingUser,
+  PendingUserDocument,
+} from './entities/pending-user.entity';
 import { NodemailerService } from '../email/nodemailer.service';
 
 @Injectable()
@@ -101,9 +110,9 @@ export class AuthService {
       throw new BadRequestException('Invalid email or password');
     }
 
-    // Update fcmToken if provided
-    if (fcmToken && fcmToken !== user.fcmToken) {
-      await this.usersService.updateProfile(user._id.toString(), { fcmToken });
+    // Register this device without replacing tokens from other devices.
+    if (fcmToken) {
+      await this.usersService.addFcmToken(user._id.toString(), fcmToken);
     }
 
     // Generate tokens
@@ -135,8 +144,15 @@ export class AuthService {
    * Creates a new user account and returns JWT tokens
    */
   async signup(signupDto: SignupDto) {
-    const { username, email, password, confirmPassword, termsAccepted, fcmToken, profileImage } =
-      signupDto;
+    const {
+      username,
+      email,
+      password,
+      confirmPassword,
+      termsAccepted,
+      fcmToken,
+      profileImage,
+    } = signupDto;
 
     // Check if passwords match
     if (password !== confirmPassword) {
@@ -184,7 +200,7 @@ export class AuthService {
 
     // Mock email sending
     console.log(`Verification code for ${email}: ${otp}`);
-    
+
     // Send actual email via Gmail SMTP
     await this.emailService.sendEmail(
       email,
@@ -207,7 +223,9 @@ export class AuthService {
     const pendingUser = await this.pendingUserModel.findOne({ email });
 
     if (!pendingUser) {
-      throw new BadRequestException('No pending registration found for this email');
+      throw new BadRequestException(
+        'No pending registration found for this email',
+      );
     }
 
     if (pendingUser.otp !== code) {

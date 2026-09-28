@@ -482,11 +482,10 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
             : 'All participants have completed the Soul Card session.';
 
       await Promise.allSettled(
-        recipients
-          .filter((user) => user.fcmToken)
-          .map((user) =>
+        recipients.flatMap((user) =>
+          this.usersService.getFcmTokens(user).map((token) =>
             this.notificationsService.sendPushNotification(
-              user.fcmToken!,
+              token,
               'Session ended',
               message,
               {
@@ -501,6 +500,7 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
               },
             ),
           ),
+        ),
       );
     } catch (error) {
       console.error(

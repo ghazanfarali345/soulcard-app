@@ -72,6 +72,9 @@ export class Session extends Document {
   @Prop({ required: true })
   noOfQuestions: number;
 
+  @Prop({ type: Number, required: true })
+  timerSeconds: number;
+
   @Prop({ type: [Object], default: [] })
   questions: SimpleQuestion[];
 

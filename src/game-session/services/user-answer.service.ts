@@ -54,11 +54,14 @@ export class UserAnswerService {
       }
 
       // Allow solo sessions to bypass turn-order initialization requirement
-      const isSoloSession = session.noOfPlayers === 1 || session.participants.length <= 1;
+      const isSoloSession =
+        session.noOfPlayers === 1 || session.participants.length <= 1;
       // Ensure questions have been generated and turn order is initialized for multiplayer
       if (
         !isSoloSession &&
-        (session.status === SessionStatus.INITIALIZED || !session.turnOrder || session.turnOrder.length === 0)
+        (session.status === SessionStatus.INITIALIZED ||
+          !session.turnOrder ||
+          session.turnOrder.length === 0)
       ) {
         throw new HttpException(
           'Turn-based play not initialized. Generate questions to start the session.',
@@ -134,7 +137,11 @@ export class UserAnswerService {
       const questionNumber = questionId + 1;
 
       // Ensure the turn order is synchronized with participants for multiplayer
-      if (!isSoloSession && (!session.turnOrder || session.turnOrder.length !== session.participants.length)) {
+      if (
+        !isSoloSession &&
+        (!session.turnOrder ||
+          session.turnOrder.length !== session.participants.length)
+      ) {
         throw new HttpException(
           'Turn order is not synchronized with participants. Please ensure all players have joined before answering.',
           HttpStatus.BAD_REQUEST,
@@ -340,14 +347,16 @@ export class UserAnswerService {
     const allUsers = await this.usersService.findByIds(allUserIds);
 
     await Promise.allSettled(
-      allUsers
-        .filter((user) => user.fcmToken)
-        .map((user) =>
-          this.notificationsService.sendDataNotification(
-            user.fcmToken!,
-            notificationData,
+      allUsers.flatMap((user) =>
+        this.usersService
+          .getFcmTokens(user)
+          .map((token) =>
+            this.notificationsService.sendDataNotification(
+              token,
+              notificationData,
+            ),
           ),
-        ),
+      ),
     );
   }
 
@@ -373,11 +382,14 @@ export class UserAnswerService {
       }
 
       // Allow solo sessions to bypass turn-order initialization requirement
-      const isSoloSession = session.noOfPlayers === 1 || session.participants.length <= 1;
+      const isSoloSession =
+        session.noOfPlayers === 1 || session.participants.length <= 1;
       // Ensure questions have been generated and turn order is initialized for multiplayer
       if (
         !isSoloSession &&
-        (session.status === SessionStatus.INITIALIZED || !session.turnOrder || session.turnOrder.length === 0)
+        (session.status === SessionStatus.INITIALIZED ||
+          !session.turnOrder ||
+          session.turnOrder.length === 0)
       ) {
         throw new HttpException(
           'Turn-based play not initialized. Generate questions to start the session.',
@@ -956,14 +968,16 @@ export class UserAnswerService {
     const allUsers = await this.usersService.findByIds(allUserIds);
 
     await Promise.allSettled(
-      allUsers
-        .filter((user) => user.fcmToken)
-        .map((user) =>
-          this.notificationsService.sendDataNotification(
-            user.fcmToken!,
-            notificationData,
+      allUsers.flatMap((user) =>
+        this.usersService
+          .getFcmTokens(user)
+          .map((token) =>
+            this.notificationsService.sendDataNotification(
+              token,
+              notificationData,
+            ),
           ),
-        ),
+      ),
     );
   }
 }

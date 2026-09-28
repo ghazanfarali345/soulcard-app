@@ -66,6 +66,14 @@ export class SessionDetailsDto {
   noOfQuestions: number;
 
   @ApiProperty({
+    example: 60,
+    description: 'Session timer duration in seconds',
+  })
+  @IsNotEmpty()
+  @IsNumber()
+  timerSeconds: number;
+
+  @ApiProperty({
     example: false,
     default: false,
     description: 'Flag indicating if the session is live',
