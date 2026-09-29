@@ -60,8 +60,9 @@ export class PerQuestionScoreDto {
 
   @ApiProperty({
     example:
-      'Your response demonstrates strong reflection. Consider exploring the distinction between activity and strategy that the model answer emphasizes.',
-    description: 'Personalized guided insight and feedback on the answer',
+      'I could pause before responding and consider how my choices affect others.',
+    description:
+      'Guided Insight: a possible first-person response to the question',
   })
   guidedInsight: string;
 }
@@ -144,13 +145,15 @@ export class AnswerBreakdownDto {
 
 export class ReflectiveInsightsDto {
   @ApiProperty({
-    example: 'You showed up and participated, which is the most important step!',
+    example:
+      'You showed up and participated, which is the most important step!',
     description: 'Reflective Strengths - What the user did well',
   })
   reflectiveStrengths: string;
 
   @ApiProperty({
-    example: 'To enhance your self-awareness, consider focusing on Reflective Depth...',
+    example:
+      'To enhance your self-awareness, consider focusing on Reflective Depth...',
     description: 'Deepening Awareness - Areas for growth with strategies',
   })
   deepeningAwareness: string;

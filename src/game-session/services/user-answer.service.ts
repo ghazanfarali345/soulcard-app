@@ -180,6 +180,7 @@ export class UserAnswerService {
         questionKey.modelAnswer,
         getEngagementMode(session.engagementMode),
         session.engagement, // e.g. 'guided' or 'spirit'
+        simpleQuestion.question,
       );
 
       // Create and save user answer record

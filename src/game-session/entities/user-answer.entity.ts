@@ -5,7 +5,7 @@ export interface PerQuestionScore {
   constructiveFeedback: string;
   similarityScore: number; // 0-100
   metrics: Record<string, number>; // Dynamic metrics based on engagement mode
-  guidedInsight: string; // Personalized feedback on the answer
+  guidedInsight: string; // A possible first-person response to the question
 }
 
 @Schema({ timestamps: true })

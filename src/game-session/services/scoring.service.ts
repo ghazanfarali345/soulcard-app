@@ -9,7 +9,7 @@ export interface ScoringResult {
   similarityScore: number; // 0-100
   metrics: Record<string, number>; // Dynamic metrics based on engagement mode
   constructiveFeedback: string; // Encouraging feedback to prompt deeper reflection
-  guidedInsight?: string; // Optional: Personalized feedback on the answer
+  guidedInsight?: string; // Optional: A possible first-person response to the question
   spiritSuggestion?: string; // Optional: Suggestions to improve or expand answer
 }
 
@@ -30,6 +30,7 @@ export class ScoringService {
     modelAnswer: string,
     engagementMode: EngagementMode = EngagementMode.REFLECTIVE,
     engagementType: string = 'guided',
+    question: string,
   ): Promise<ScoringResult> {
     try {
       if (!userAnswer || !modelAnswer) {
@@ -44,10 +45,15 @@ export class ScoringService {
         modelAnswer,
         engagementMode,
         engagementType,
+        question,
       );
       const scoringResponse =
         await this.geminiService.generateContent(scoringPrompt);
-      const result = this.parseScoringResponse(scoringResponse, engagementMode, engagementType);
+      const result = this.parseScoringResponse(
+        scoringResponse,
+        engagementMode,
+        engagementType,
+      );
 
       return result;
     } catch (error) {
@@ -66,6 +72,7 @@ export class ScoringService {
     modelAnswer: string,
     engagementMode: EngagementMode,
     engagementType: string,
+    question: string,
   ): string {
     const config = ENGAGEMENT_MODE_CONFIG[engagementMode];
     const parametersPrompt = config.parameters
@@ -85,6 +92,9 @@ Guidance Style: ${config.guidanceLayer} (${config.reason})
 
 MODEL ANSWER (IDEAL RESPONSE):
 "${modelAnswer}"
+
+QUESTION:
+"${question}"
 
 USER ANSWER (TO BE SCORED):
 "${userAnswer}"
@@ -112,16 +122,16 @@ ${
    Focus on helping them grow their response to be more meaningful.
    Return as: Spirit Suggestion: [Your suggestion text]`
     : `4. GUIDED INSIGHT (1-2 sentences):
-   Provide personalized, deeper feedback that helps the user understand their answer better. 
-   Reflect on the idea of the question and help them see what a complete or meaningful answer looks like.
-   Return as: Guided Insight: [Your insight text]`
+     Give a natural example of what the user could have said in response to the question. Write it in first person, directly answer the question, and use the model answer for helpful ideas while grounding the wording in details the user actually shared.
+     Do not address the user with advice, evaluate their answer, claim the example is their actual belief, or invent personal experiences or facts. Keep it adaptable when the user's answer gives little personal detail.
+     Return as: Guided Insight: [A possible first-person response]`
 }
 
 FORMAT YOUR RESPONSE EXACTLY AS:
 Similarity Score: [NUMBER]
 ${formatPrompt}
 Constructive Feedback: [Your feedback text]
-${engagementType === 'spirit' ? 'Spirit Suggestion: [Your suggestion text]' : 'Guided Insight: [Your insight text]'}
+${engagementType === 'spirit' ? 'Spirit Suggestion: [Your suggestion text]' : 'Guided Insight: [A possible first-person response]'}
 
 Remember: Be fair but honest. Similarity can be high even if slightly different wording. Score the metrics based on the definitions provided above for the ${engagementMode} mode.`;
   }
@@ -151,9 +161,13 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
 
         // Parse Similarity Score
         if (trimmedLine.toLowerCase().includes('similarity')) {
-          const match = trimmedLine.match(/:\s*(\d+)/) || trimmedLine.match(/(\d+)/);
+          const match =
+            trimmedLine.match(/:\s*(\d+)/) || trimmedLine.match(/(\d+)/);
           if (match) {
-            similarityScore = Math.min(100, Math.max(0, parseInt(match[1], 10)));
+            similarityScore = Math.min(
+              100,
+              Math.max(0, parseInt(match[1], 10)),
+            );
           }
         }
 
@@ -161,18 +175,22 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
         for (const p of config.parameters) {
           const pNameLower = p.name.toLowerCase();
           if (trimmedLine.toLowerCase().includes(pNameLower)) {
-            // To prevent capturing a number from feedback text that mentions the parameter name, 
+            // To prevent capturing a number from feedback text that mentions the parameter name,
             // ensure there's a colon or the line is relatively short (like a bullet point)
             if (trimmedLine.includes(':') || trimmedLine.length < 60) {
               // Try to find the number after the parameter name
-              const regex = new RegExp(`${pNameLower}.*?(?::|\\s)\\s*(\\d+)`, 'i');
+              const regex = new RegExp(
+                `${pNameLower}.*?(?::|\\s)\\s*(\\d+)`,
+                'i',
+              );
               let match = trimmedLine.match(regex);
-              
+
               // Fallback to any number on the line
               if (!match) {
-                match = trimmedLine.match(/:\s*(\d+)/) || trimmedLine.match(/(\d+)/);
+                match =
+                  trimmedLine.match(/:\s*(\d+)/) || trimmedLine.match(/(\d+)/);
               }
-              
+
               if (match) {
                 metrics[pNameLower] = Math.min(
                   20,
@@ -221,30 +239,33 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
 
       // Defaults if not found
       if (similarityScore === null) similarityScore = 65;
-      
+
       config.parameters.forEach((p) => {
         const key = p.name.toLowerCase();
         if (metrics[key] === 0) metrics[key] = 14;
       });
 
       if (!constructiveFeedback) {
-        constructiveFeedback = 'Try to elaborate further — sharing a specific example or memory could make your answer even more meaningful.';
+        constructiveFeedback =
+          'Try to elaborate further — sharing a specific example or memory could make your answer even more meaningful.';
       }
 
       if (!guidedInsight && engagementType !== 'spirit') {
-        guidedInsight = 'Your response shows your perspective. Consider exploring the model answer to deepen your understanding of this question.';
+        guidedInsight =
+          'I could connect my answer to a specific example and explain why it matters to me.';
       }
 
       if (!spiritSuggestion && engagementType === 'spirit') {
-        spiritSuggestion = 'Consider expanding on your thoughts — what feelings or memories does this question evoke for you?';
+        spiritSuggestion =
+          'Consider expanding on your thoughts — what feelings or memories does this question evoke for you?';
       }
 
       return {
         similarityScore,
         metrics,
         constructiveFeedback,
-        ...(engagementType === 'spirit' 
-          ? { spiritSuggestion: spiritSuggestion || undefined } 
+        ...(engagementType === 'spirit'
+          ? { spiritSuggestion: spiritSuggestion || undefined }
           : { guidedInsight: guidedInsight || undefined }),
       };
     } catch (error) {
@@ -270,7 +291,10 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
     const aggregateMetrics: Record<string, number> = {};
 
     metricKeys.forEach((key) => {
-      const sum = allScores.reduce((s, score) => s + (score.metrics[key] || 0), 0);
+      const sum = allScores.reduce(
+        (s, score) => s + (score.metrics[key] || 0),
+        0,
+      );
       aggregateMetrics[key] = Math.round(sum / allScores.length);
     });
 
@@ -283,12 +307,19 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
   async generateReflectiveInsights(
     overallScore: number,
     metrics: Record<string, number>,
-    context: { soulSpace: string; vibe: string; engagementMode: EngagementMode },
+    context: {
+      soulSpace: string;
+      vibe: string;
+      engagementMode: EngagementMode;
+    },
   ): Promise<ReflectiveInsights> {
     try {
       const config = ENGAGEMENT_MODE_CONFIG[context.engagementMode];
       const metricsList = Object.entries(metrics)
-        .map(([key, value]) => `- ${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}/20`)
+        .map(
+          ([key, value]) =>
+            `- ${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}/20`,
+        )
         .join('\n');
 
       const prompt = `You are a deeply empathetic and insightful ${config.guidanceLayer}. Analyze the following results from a "Soul Card Game" session and provide personalized, narrative feedback.
@@ -336,8 +367,10 @@ PERSONALIZED RECOMMENDATIONS:
     } catch (error) {
       console.error('Error generating reflective insights:', error);
       return {
-        reflectiveStrengths: 'You showed up and participated, which is the most important step!',
-        deepeningAwareness: 'Every journey of self-discovery has areas to explore further.',
+        reflectiveStrengths:
+          'You showed up and participated, which is the most important step!',
+        deepeningAwareness:
+          'Every journey of self-discovery has areas to explore further.',
         whatThisMeans: 'You are on a journey of growth.',
         nextBestAction: 'Continue holding space for what arises.',
         personalizedRecommendations: [
@@ -385,7 +418,10 @@ PERSONALIZED RECOMMENDATIONS:
           whatThisMeans += ' ' + line;
         } else if (currentSection === 'action') {
           nextBestAction += ' ' + line;
-        } else if (currentSection === 'recommendations' && (line.startsWith('•') || line.startsWith('-'))) {
+        } else if (
+          currentSection === 'recommendations' &&
+          (line.startsWith('•') || line.startsWith('-'))
+        ) {
           personalizedRecommendations.push(line.substring(1).trim());
         }
       }
@@ -396,9 +432,10 @@ PERSONALIZED RECOMMENDATIONS:
       deepeningAwareness: deepeningAwareness.trim(),
       whatThisMeans: whatThisMeans.trim(),
       nextBestAction: nextBestAction.trim(),
-      personalizedRecommendations: personalizedRecommendations.length > 0 
-        ? personalizedRecommendations 
-        : ['Continue your reflection journey'],
+      personalizedRecommendations:
+        personalizedRecommendations.length > 0
+          ? personalizedRecommendations
+          : ['Continue your reflection journey'],
     };
   }
 }

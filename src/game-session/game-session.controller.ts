@@ -266,7 +266,7 @@ export class GameSessionController {
                             authenticity: 17,
                           },
                           guidedInsight:
-                            'Your response demonstrates strong reflection on the topic.',
+                            'I have become more patient by pausing before I react, especially when a situation feels frustrating.',
                           constructiveFeedback:
                             'Consider naming one specific behavior you will continue.',
                         },
@@ -429,7 +429,7 @@ export class GameSessionController {
               authenticity: 17,
             },
             guidedInsight:
-              'Your response demonstrates strong reflection. Consider exploring the distinction between activity and strategy that the model answer emphasizes.',
+              'I could pause before responding and consider how my choices affect others.',
           },
           isLastQuestion: false,
         },
@@ -734,7 +734,7 @@ export class GameSessionController {
                   authenticity: 17,
                 },
                 guidedInsight:
-                  'Your response demonstrates strong reflection on the topic.',
+                  'I could pause before responding and consider how my choices affect others.',
               },
             },
           ],
