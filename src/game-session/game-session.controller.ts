@@ -7,6 +7,7 @@ import {
   Param,
   Get,
   Query,
+  Patch,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -34,6 +35,7 @@ import {
 import { InvitationService } from './services/invitation.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { JoinSessionDto } from './dto/join-session.dto';
+import { ResultVisibilityDto } from './dto/result-visibility.dto';
 import * as jwt from 'jsonwebtoken';
 
 @ApiTags('Game Sessions')
@@ -666,10 +668,45 @@ export class GameSessionController {
     status: 401,
     description: 'Unauthorized - Missing or invalid JWT token',
   })
-  async getProgress(@Param('sessionId') sessionId: string) {
-    const data = await this.userAnswerService.getSessionProgress(sessionId);
+  async getProgress(@Param('sessionId') sessionId: string, @Req() req: any) {
+    const data = await this.userAnswerService.getSessionProgress(
+      sessionId,
+      req.user?.userId,
+    );
     return {
       success: true,
+      data,
+    };
+  }
+
+  @Patch(':sessionId/result-visibility')
+  @UseGuards(JwtGuard)
+  @ApiSecurity('access-token')
+  @ApiParam({
+    name: 'sessionId',
+    description: 'The ID of the session',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @ApiOperation({
+    summary: 'Update Result Visibility',
+    description:
+      'Allow or prevent other members of the session from viewing your results.',
+  })
+  @ApiBody({ type: ResultVisibilityDto })
+  async updateResultVisibility(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: ResultVisibilityDto,
+    @Req() req: any,
+  ) {
+    const data = await this.userAnswerService.updateResultVisibility(
+      sessionId,
+      req.user?.userId,
+      dto.shareResults,
+    );
+
+    return {
+      success: true,
+      message: 'Result visibility updated successfully',
       data,
     };
   }

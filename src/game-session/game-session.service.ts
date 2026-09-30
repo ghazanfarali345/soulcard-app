@@ -74,6 +74,7 @@ export class GameSessionService {
         {
           userId: userObjectId,
           displayName: user?.username || user?.fullName || 'Host',
+          shareResults: false,
           answersSubmitted: 0,
           skippedQuestions: [],
           isCompleted: false,
@@ -564,7 +565,10 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
     const sessionIds = sessions.map((session: any) => session._id);
     const answers = sessionIds.length
       ? await this.userAnswerModel
-          .find({ sessionId: { $in: sessionIds } })
+          .find({
+            sessionId: { $in: sessionIds },
+            playerId: userObjectId,
+          })
           .sort({ questionNumber: 1 })
           .lean()
           .exec()

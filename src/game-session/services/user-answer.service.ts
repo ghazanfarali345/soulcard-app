@@ -699,12 +699,13 @@ export class UserAnswerService {
    * @param sessionId - Session ID
    * @returns Progress information for each participant
    */
-  async getSessionProgress(sessionId: string) {
+  async getSessionProgress(sessionId: string, userId: string) {
     try {
       const session = await this.sessionModel.findById(sessionId);
       if (!session) {
         throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
       }
+      this.assertParticipant(session, userId);
 
       const playerProgress = await Promise.all(
         session.participantsInfo.map(async (p) => {
@@ -722,7 +723,7 @@ export class UserAnswerService {
               sessionId: new Types.ObjectId(sessionId),
               userId: p.userId,
             });
-            if (sessionResult) {
+            if (sessionResult && this.canViewResult(p, userId)) {
               results = sessionResult.finalResults;
             }
           }
@@ -734,6 +735,8 @@ export class UserAnswerService {
             skippedQuestions: p.skippedQuestions,
             isComplete,
             results,
+            resultsHidden:
+              isComplete && !results && p.userId.toString() !== userId,
           };
         }),
       );
@@ -767,6 +770,13 @@ export class UserAnswerService {
       if (!session) {
         throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
       }
+      if (!userId) {
+        throw new HttpException(
+          'User identity is required',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+      this.assertParticipant(session, userId);
 
       // If userId is provided, check if we need to calculate results for this user
       if (userId) {
@@ -906,8 +916,17 @@ export class UserAnswerService {
             )?.displayName || 'Player',
           profileImage: userMap.get(r.userId.toString()) || null,
           finalResults: r.finalResults,
-          reflectiveInsights: r.reflectiveInsights,
-          answersBreakdown: r.answersBreakdown,
+          ...(this.canViewResult(
+            allParticipants.find(
+              (p) => p.userId.toString() === r.userId.toString(),
+            ),
+            userId,
+          )
+            ? {
+                reflectiveInsights: r.reflectiveInsights,
+                answersBreakdown: r.answersBreakdown,
+              }
+            : { resultsHidden: true }),
           answersSubmitted: r.answersSubmitted,
           completedAt: r.completedAt,
         })),
@@ -921,6 +940,51 @@ export class UserAnswerService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async updateResultVisibility(
+    sessionId: string,
+    userId: string,
+    shareResults: boolean,
+  ) {
+    const session = await this.sessionModel.findById(sessionId);
+    if (!session) {
+      throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
+    }
+
+    const participant = this.assertParticipant(session, userId);
+    participant.shareResults = shareResults;
+    await session.save();
+
+    return { sessionId, userId, shareResults };
+  }
+
+  private assertParticipant(session: Session, userId: string) {
+    const participant = session.participantsInfo.find(
+      (p) => p.userId.toString() === userId,
+    );
+    const isParticipant = session.participants.some(
+      (participantId) => participantId.toString() === userId,
+    );
+
+    if (!participant || !isParticipant) {
+      throw new HttpException(
+        'User is not a participant in this session',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    return participant;
+  }
+
+  private canViewResult(
+    participant: Session['participantsInfo'][number] | undefined,
+    viewerId: string,
+  ) {
+    return (
+      participant?.userId.toString() === viewerId ||
+      participant?.shareResults === true
+    );
   }
 
   private async advanceTurn(session: Session): Promise<void> {

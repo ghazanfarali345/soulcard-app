@@ -29,6 +29,7 @@ export class Session extends Document {
       {
         userId: { type: Types.ObjectId, ref: 'User' },
         displayName: String,
+        shareResults: { type: Boolean, default: false },
         answersSubmitted: { type: Number, default: 0 },
         skippedQuestions: { type: [Number], default: [] },
         isCompleted: { type: Boolean, default: false },
@@ -39,6 +40,7 @@ export class Session extends Document {
   participantsInfo: {
     userId: Types.ObjectId;
     displayName: string;
+    shareResults?: boolean;
     profileImage?: string | null;
     answersSubmitted: number;
     skippedQuestions: number[];
