@@ -29,7 +29,7 @@ export class Session extends Document {
       {
         userId: { type: Types.ObjectId, ref: 'User' },
         displayName: String,
-        shareResults: { type: Boolean, default: false },
+        shareResults: { type: Boolean, default: true },
         answersSubmitted: { type: Number, default: 0 },
         skippedQuestions: { type: [Number], default: [] },
         isCompleted: { type: Boolean, default: false },

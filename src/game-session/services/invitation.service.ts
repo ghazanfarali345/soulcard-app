@@ -98,7 +98,7 @@ export class InvitationService {
       session.participantsInfo.push({
         userId: userObjectId,
         displayName,
-        shareResults: false,
+        shareResults: true,
         answersSubmitted: 0,
         skippedQuestions: [],
         isCompleted: false,
@@ -131,7 +131,7 @@ export class InvitationService {
         session.participantsInfo.push({
           userId: userObjectId,
           displayName,
-          shareResults: false,
+          shareResults: true,
           answersSubmitted: 0,
           skippedQuestions: [],
           isCompleted: false,

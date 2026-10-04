@@ -74,7 +74,7 @@ export class GameSessionService {
         {
           userId: userObjectId,
           displayName: user?.username || user?.fullName || 'Host',
-          shareResults: false,
+          shareResults: true,
           answersSubmitted: 0,
           skippedQuestions: [],
           isCompleted: false,

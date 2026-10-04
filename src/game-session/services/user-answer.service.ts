@@ -736,7 +736,9 @@ export class UserAnswerService {
             isComplete,
             results,
             resultsHidden:
-              isComplete && !results && p.userId.toString() !== userId,
+              isComplete &&
+              p.userId.toString() !== userId &&
+              p.shareResults === false,
           };
         }),
       );
@@ -983,7 +985,7 @@ export class UserAnswerService {
   ) {
     return (
       participant?.userId.toString() === viewerId ||
-      participant?.shareResults === true
+      participant?.shareResults !== false
     );
   }
 
