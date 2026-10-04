@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Join on SoulCard</title>
+<meta name="description" content="You've been invited to a SoulCard session.">
+<meta name="theme-color" content="#F26708">
+<meta property="og:title" content="You're invited to a SoulCard session">
+<meta property="og:description" content="Connect. Reflect. Feel. Tap to join in the SoulCard app.">
+<meta property="og:image" content="logo.png">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #F26708;
+    --primary-2: #DA5E05;
+    --accent: #C65601;
+    --gold: #F5CC00;
+    --ink: #1a0533;
+    --text: #ffffff;
+    --muted: rgba(255, 255, 255, 0.78);
+    --line: rgba(255, 255, 255, 0.18);
+    --panel: rgba(0, 0, 0, 0.15);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    min-height: 100vh;
+    background: linear-gradient(180deg, var(--primary) 0%, var(--primary-2) 100%);
+    background-color: var(--primary);
+    color: var(--text);
+    font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: max(32px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
+  }
+  main { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+
+  .brand { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .brand img { width: 104px; height: auto; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.2)); }
+  .wordmark { margin: 14px 0 0; font-size: 34px; font-weight: 600; letter-spacing: 1px; line-height: 1; }
+  .wordmark sup { font-size: 10px; margin-left: 2px; vertical-align: top; position: relative; top: 2px; }
+  .slogan { margin: 8px 0 0; font-size: 13px; font-weight: 300; letter-spacing: 3px; color: var(--muted); }
+
+  .card {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    padding: 24px 20px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .card h1 { margin: 0; font-size: 21px; font-weight: 600; text-align: center; text-wrap: balance; }
+  .card p { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); text-align: center; }
+
+  .code {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(245, 204, 0, 0.12);
+    border: 1.5px solid var(--gold);
+  }
+  .code-label { font-size: 10px; font-weight: 600; letter-spacing: 2px; color: var(--muted); }
+  .code-value { font-size: 26px; font-weight: 700; letter-spacing: 3px; color: var(--gold); font-variant-numeric: tabular-nums; word-break: break-all; }
+  .copy {
+    flex-shrink: 0;
+    font: 500 13px/1 "Poppins", sans-serif;
+    color: var(--text);
+    background: rgba(0,0,0,0.18);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 14px;
+    cursor: pointer;
+  }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%;
+    min-height: 54px;
+    border-radius: 999px;
+    font: 600 15px/1 "Poppins", sans-serif;
+    letter-spacing: 1px;
+    text-decoration: none;
+    cursor: pointer;
+    border: 0;
+  }
+  .btn-primary { background: linear-gradient(90deg, #FFE566, #FF9500); color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid rgba(255,255,255,0.45); }
+  .btn:focus-visible, .copy:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+  .hint { font-size: 12px; color: var(--muted); text-align: center; margin: 0; }
+  .install { display: none; flex-direction: column; gap: 10px; }
+  .install.show { display: flex; }
+  .error { display: none; }
+  .error.show { display: block; }
+  .desktop-note { display: none; }
+  .desktop .desktop-note { display: block; }
+  .desktop .mobile-only { display: none; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .brand img { animation: rise 600ms ease-out both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="brand">
+    <img src="logo.png" alt="SoulCard logo" width="104" height="113">
+    <p class="wordmark">SOULCARD<sup>TM</sup></p>
+    <p class="slogan">CONNECT. REFLECT. FEEL</p>
+  </header>
+
+  <section class="card" id="invite" hidden>
+    <h1>You're invited to a SoulCard session</h1>
+    <p class="mobile-only">Open the app and your join code will already be filled in. Tap <strong>Join</strong> when you're ready.</p>
+    <p class="desktop-note">Open this link on your phone to join, or enter the code below on the Join Session screen in the SoulCard app.</p>
+
+    <div class="code">
+      <div>
+        <div class="code-label">JOIN CODE</div>
+        <div class="code-value" id="code-value"></div>
+      </div>
+      <button class="copy" id="copy" type="button">Copy</button>
+    </div>
+
+    <button class="btn btn-primary mobile-only" id="open" type="button">Open in SoulCard</button>
+
+    <div class="install" id="install">
+      <p class="hint">Don't have SoulCard yet? Install it, then come back and tap this link again.</p>
+      <a class="btn btn-secondary" id="store" href="#">Get the app</a>
+    </div>
+  </section>
+
+  <section class="card error" id="error">
+    <h1>This invite link isn't valid</h1>
+    <p>Ask your host to send the invite again, or enter their join code on the Join Session screen in the SoulCard app.</p>
+  </section>
+</main>
+
+<script>
+(function () {
+  // ---- Config: update the iOS store link once the app is published ----
+  var APP_SCHEME = "soulcard";
+  var ANDROID_PACKAGE = "com.app.game.SoulCard";
+  var PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=" + ANDROID_PACKAGE;
+  var APP_STORE_URL = "https://apps.apple.com/app/id0000000000";
+
+  var CODE_RE = /^[A-Za-z0-9-]{3,32}$/;
+
+  // Supports /join/<code> and /join?code=<code>
+  function readCode() {
+    var fromQuery = new URLSearchParams(window.location.search).get("code");
+    var fromPath = window.location.pathname.split("/").filter(Boolean).pop();
+    var raw = fromQuery || (fromPath && fromPath.toLowerCase() !== "join" && fromPath.indexOf(".") === -1 ? fromPath : "");
+    try { raw = decodeURIComponent(raw || "").trim(); } catch (e) { raw = ""; }
+    return CODE_RE.test(raw) ? raw : null;
+  }
+
+  var ua = navigator.userAgent || "";
+  var isAndroid = /Android/i.test(ua);
+  var isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  var isMobile = isAndroid || isIOS;
+
+  var code = readCode();
+  if (!code) {
+    document.getElementById("error").classList.add("show");
+    return;
+  }
+
+  if (!isMobile) document.body.classList.add("desktop");
+  document.getElementById("invite").hidden = false;
+  document.getElementById("code-value").textContent = code;
+
+  var storeLink = document.getElementById("store");
+  storeLink.href = isIOS ? APP_STORE_URL : PLAY_STORE_URL;
+
+  var encoded = encodeURIComponent(code);
+  var schemeUrl = APP_SCHEME + "://join?code=" + encoded;
+  // Android intent URL: opens the app if installed, otherwise Chrome follows the Play Store fallback.
+  var intentUrl = "intent://join?code=" + encoded +
+    "#Intent;scheme=" + APP_SCHEME +
+    ";package=" + ANDROID_PACKAGE +
+    ";S.browser_fallback_url=" + encodeURIComponent(PLAY_STORE_URL) +
+    ";end";
+
+  function showInstall() {
+    document.getElementById("install").classList.add("show");
+  }
+
+  function openApp() {
+    var leftPage = false;
+    function markLeft() { if (document.hidden) leftPage = true; }
+    document.addEventListener("visibilitychange", markLeft);
+    window.addEventListener("pagehide", function () { leftPage = true; }, { once: true });
+
+    window.location.href = isAndroid ? intentUrl : schemeUrl;
+
+    // If the app didn't take over, the page is still visible: offer the store.
+    setTimeout(function () {
+      document.removeEventListener("visibilitychange", markLeft);
+      if (!leftPage) showInstall();
+    }, 1800);
+  }
+
+  document.getElementById("open").addEventListener("click", openApp);
+
+  document.getElementById("copy").addEventListener("click", function () {
+    var btn = this;
+    var done = function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(done, function () {});
+    } else {
+      var t = document.createElement("textarea");
+      t.value = code; document.body.appendChild(t); t.select();
+      try { document.execCommand("copy"); done(); } catch (e) {}
+      document.body.removeChild(t);
+    }
+  });
+
+  // Try once automatically; the button stays for in-app browsers that block automatic opens.
+  if (isMobile) setTimeout(openApp, 400);
+})();
+</script>
+</body>
+</html>
