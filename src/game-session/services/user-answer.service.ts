@@ -10,6 +10,51 @@ import { UsersService } from '../../users/users.service';
 import { getEngagementMode } from '../engagement-mode.config';
 import { NotificationsService } from '../../notifications/notifications.service';
 
+const TRAJECTORY_RANGES = {
+  '7d': 7,
+  '30d': 30,
+  '90d': 90,
+  '1y': 365,
+} as const;
+
+const EXPLORATION_LABELS: Record<string, string> = {
+  reflective: 'Self-Awareness',
+  insight: 'Perspective',
+  openness: 'Emotional Awareness',
+  authenticity: 'Authenticity',
+  coherence: 'Communication',
+  grounding: 'Understanding',
+  growth: 'Learning',
+  accuracy: 'Understanding',
+  conceptual: 'Understanding',
+  clarity: 'Communication',
+  application: 'Learning',
+  playfulness: 'Humor',
+  participation: 'Communication',
+  timing: 'Communication',
+  social: 'Empathy',
+};
+
+function getDateKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const partMap = Object.fromEntries(
+    parts.map(({ type, value }) => [type, value]),
+  );
+  return `${partMap.year}-${partMap.month}-${partMap.day}`;
+}
+
+function shiftDateKey(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 @Injectable()
 export class UserAnswerService {
   private readonly logger = new Logger(UserAnswerService.name);
@@ -221,6 +266,7 @@ export class UserAnswerService {
             ?.length || 0);
         if (totalResponded >= session.noOfQuestions) {
           session.participantsInfo[participantIndex].isCompleted = true;
+          session.participantsInfo[participantIndex].completedAt ??= new Date();
         }
       } else {
         // If not in participantsInfo yet (e.g. host who hasn't joined formally but is playing)
@@ -231,6 +277,7 @@ export class UserAnswerService {
           answersSubmitted: 1,
           skippedQuestions: [],
           isCompleted,
+          ...(isCompleted ? { completedAt: new Date() } : {}),
         });
       }
 
@@ -477,6 +524,7 @@ export class UserAnswerService {
           answersSubmitted: 0,
           skippedQuestions: [questionNumber],
           isCompleted,
+          ...(isCompleted ? { completedAt: new Date() } : {}),
         });
       } else {
         if (participant.skippedQuestions.includes(questionNumber)) {
@@ -492,6 +540,7 @@ export class UserAnswerService {
           participant.answersSubmitted + participant.skippedQuestions.length;
         if (totalResponded >= session.noOfQuestions) {
           participant.isCompleted = true;
+          participant.completedAt ??= new Date();
         }
       }
 
@@ -647,6 +696,14 @@ export class UserAnswerService {
         },
       }));
 
+      const existingResult = await this.sessionResultModel.findOne({
+        sessionId: new Types.ObjectId(sessionId),
+        userId: new Types.ObjectId(userId),
+      });
+      const participant = session.participantsInfo.find(
+        (p) => p.userId.toString() === userId,
+      );
+
       // Upsert SessionResult to avoid duplicate result documents for the same user
       const resultDoc = {
         sessionId: new Types.ObjectId(sessionId),
@@ -664,7 +721,8 @@ export class UserAnswerService {
         },
         reflectiveInsights,
         answersBreakdown,
-        completedAt: new Date(),
+        completedAt:
+          participant?.completedAt || existingResult?.completedAt || new Date(),
       };
 
       await this.sessionResultModel.findOneAndUpdate(
@@ -942,6 +1000,272 @@ export class UserAnswerService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async getTrajectory(userId: string, range = '30d', timezone = 'UTC') {
+    if (range !== 'all' && !Object.hasOwn(TRAJECTORY_RANGES, range)) {
+      throw new HttpException(
+        'Range must be one of 7d, 30d, 90d, 1y, or all',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const now = new Date();
+    let todayKey: string;
+    try {
+      todayKey = getDateKey(now, timezone);
+    } catch {
+      throw new HttpException('Invalid IANA timezone', HttpStatus.BAD_REQUEST);
+    }
+    const rangeDays = range === 'all' ? 30 : TRAJECTORY_RANGES[range];
+    const periodStartKey = shiftDateKey(todayKey, -rangeDays + 1);
+    const comparisonStartKey = shiftDateKey(periodStartKey, -rangeDays);
+
+    const completedSessions = await this.sessionModel
+      .find({
+        'participantsInfo.userId': new Types.ObjectId(userId),
+      })
+      .lean()
+      .exec();
+
+    const participantBySession = new Map<
+      string,
+      { completedAt?: Date; sessionDate?: Date }
+    >();
+    const completedDays = new Set<string>();
+
+    for (const session of completedSessions) {
+      const participant = session.participantsInfo?.find(
+        (item) => item.userId.toString() === userId,
+      );
+      const respondedCount =
+        (participant?.answersSubmitted || 0) +
+        (participant?.skippedQuestions?.length || 0);
+      if (!participant?.isCompleted || respondedCount < session.noOfQuestions) {
+        continue;
+      }
+
+      const completedAt = participant.completedAt
+        ? new Date(participant.completedAt)
+        : session.updatedAt
+          ? new Date(session.updatedAt)
+          : session.createdAt
+            ? new Date(session.createdAt)
+            : undefined;
+      if (!completedAt || Number.isNaN(completedAt.getTime())) continue;
+
+      const sessionId = session._id.toString();
+      participantBySession.set(sessionId, {
+        completedAt,
+        sessionDate: completedAt,
+      });
+      completedDays.add(getDateKey(completedAt, timezone));
+    }
+
+    const sessionIds = [...participantBySession.keys()].map(
+      (id) => new Types.ObjectId(id),
+    );
+    const resultFilter: Record<string, any> = {
+      userId: new Types.ObjectId(userId),
+    };
+    if (sessionIds.length > 0) resultFilter.sessionId = { $in: sessionIds };
+    else resultFilter.sessionId = { $in: [] };
+
+    const savedResults = await this.sessionResultModel
+      .find(resultFilter)
+      .lean()
+      .exec();
+    const pointsBySession = new Map<
+      string,
+      { date: Date; score: number; metrics: Record<string, number> }
+    >();
+
+    for (const result of savedResults) {
+      const sessionId = result.sessionId.toString();
+      const participant = participantBySession.get(sessionId);
+      const date = participant?.completedAt || new Date(result.completedAt);
+      if (typeof result.finalResults?.overallScore !== 'number') continue;
+      pointsBySession.set(sessionId, {
+        date,
+        score: result.finalResults.overallScore,
+        metrics: result.finalResults.metrics || {},
+      });
+    }
+
+    if (sessionIds.length > 0) {
+      const answers = await this.userAnswerModel
+        .find({
+          playerId: new Types.ObjectId(userId),
+          sessionId: { $in: sessionIds },
+        })
+        .select('sessionId score answeredAt')
+        .lean()
+        .exec();
+      const groupedAnswers = new Map<
+        string,
+        { scores: number[]; metrics: Map<string, number[]> }
+      >();
+
+      for (const answer of answers) {
+        const sessionId = answer.sessionId.toString();
+        if (pointsBySession.has(sessionId)) continue;
+        const similarityScore = answer.score?.similarityScore;
+        if (typeof similarityScore !== 'number') continue;
+        const group = groupedAnswers.get(sessionId) || {
+          scores: [],
+          metrics: new Map<string, number[]>(),
+        };
+        group.scores.push(similarityScore);
+        for (const [metric, value] of Object.entries(
+          answer.score.metrics || {},
+        )) {
+          if (typeof value !== 'number') continue;
+          const values = group.metrics.get(metric) || [];
+          values.push(value);
+          group.metrics.set(metric, values);
+        }
+        groupedAnswers.set(sessionId, group);
+      }
+
+      for (const [sessionId, group] of groupedAnswers) {
+        const participant = participantBySession.get(sessionId);
+        const date = participant?.completedAt;
+        if (!date || group.scores.length === 0) continue;
+        const metrics = Object.fromEntries(
+          [...group.metrics].map(([metric, values]) => [
+            metric,
+            Math.round(
+              values.reduce((sum, value) => sum + value, 0) / values.length,
+            ),
+          ]),
+        );
+        pointsBySession.set(sessionId, {
+          date,
+          score: Math.round(
+            group.scores.reduce((sum, value) => sum + value, 0) /
+              group.scores.length,
+          ),
+          metrics,
+        });
+      }
+    }
+
+    const resultPoints = [...pointsBySession.values()]
+      .filter(
+        (point) => !Number.isNaN(point.date.getTime()) && point.date <= now,
+      )
+      .sort((left, right) => left.date.getTime() - right.date.getTime());
+
+    const periodResults = resultPoints.filter(
+      (point) =>
+        range === 'all' || getDateKey(point.date, timezone) >= periodStartKey,
+    );
+    const currentTrendResults = resultPoints.filter((point) => {
+      const dateKey = getDateKey(point.date, timezone);
+      return dateKey >= periodStartKey && dateKey <= todayKey;
+    });
+    const previousTrendResults = resultPoints.filter((point) => {
+      const dateKey = getDateKey(point.date, timezone);
+      return dateKey >= comparisonStartKey && dateKey < periodStartKey;
+    });
+
+    const average = (points: typeof resultPoints) =>
+      points.length
+        ? points.reduce((sum, point) => sum + point.score, 0) / points.length
+        : null;
+    const periodAverage = average(periodResults);
+    const currentTrendAverage = average(currentTrendResults);
+    const previousTrendAverage = average(previousTrendResults);
+    const trendChange =
+      currentTrendAverage !== null && previousTrendAverage !== null
+        ? Number((currentTrendAverage - previousTrendAverage).toFixed(1))
+        : null;
+    const trend =
+      currentTrendResults.length >= 2 &&
+      previousTrendResults.length >= 2 &&
+      trendChange !== null
+        ? trendChange >= 5
+          ? 'Improving'
+          : trendChange <= -5
+            ? 'Declining'
+            : 'Stable'
+        : 'Stable';
+
+    const highest = periodResults.reduce<(typeof resultPoints)[number] | null>(
+      (best, point) => (!best || point.score > best.score ? point : best),
+      null,
+    );
+    const lowest = periodResults.reduce<(typeof resultPoints)[number] | null>(
+      (best, point) => (!best || point.score < best.score ? point : best),
+      null,
+    );
+
+    const explorationTotals = new Map<
+      string,
+      { total: number; count: number }
+    >();
+    for (const point of periodResults) {
+      for (const [metric, value] of Object.entries(point.metrics)) {
+        const label = EXPLORATION_LABELS[metric.toLowerCase()];
+        if (!label || typeof value !== 'number') continue;
+        const aggregate = explorationTotals.get(label) || {
+          total: 0,
+          count: 0,
+        };
+        aggregate.total += value;
+        aggregate.count += 1;
+        explorationTotals.set(label, aggregate);
+      }
+    }
+
+    const exploration = [...explorationTotals.entries()]
+      .map(([area, values]) => ({
+        area,
+        averageScore: Number((values.total / values.count).toFixed(1)),
+      }))
+      .sort((left, right) => right.averageScore - left.averageScore);
+
+    let currentStreak = 0;
+    let streakDateKey = todayKey;
+    if (!completedDays.has(streakDateKey)) {
+      streakDateKey = shiftDateKey(streakDateKey, -1);
+    }
+    while (completedDays.has(streakDateKey)) {
+      currentStreak += 1;
+      streakDateKey = shiftDateKey(streakDateKey, -1);
+    }
+
+    const selectedSessionCount = [...participantBySession.values()].filter(
+      ({ completedAt }) =>
+        range === 'all' ||
+        (!!completedAt &&
+          getDateKey(completedAt, timezone) >= periodStartKey &&
+          getDateKey(completedAt, timezone) <= todayKey),
+    ).length;
+
+    return {
+      range,
+      timezone,
+      currentScore: periodResults.at(-1)?.score ?? null,
+      highestRecordedScore: highest
+        ? { score: highest.score, date: highest.date }
+        : null,
+      lowestRecordedScore: lowest
+        ? { score: lowest.score, date: lowest.date }
+        : null,
+      averageScore:
+        periodAverage === null ? null : Number(periodAverage.toFixed(1)),
+      trend: {
+        direction: trend,
+        change: trendChange,
+        threshold: 5,
+        minimumSessionsPerPeriod: 2,
+      },
+      currentStreak,
+      totalSessionsCompleted: selectedSessionCount,
+      trajectory: periodResults.map(({ date, score }) => ({ date, score })),
+      whatYouAreExploring: exploration,
+    };
   }
 
   async updateResultVisibility(

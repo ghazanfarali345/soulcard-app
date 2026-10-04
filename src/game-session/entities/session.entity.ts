@@ -15,6 +15,9 @@ export enum SessionStatus {
 
 @Schema({ timestamps: true })
 export class Session extends Document {
+  createdAt?: Date;
+  updatedAt?: Date;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
@@ -33,6 +36,7 @@ export class Session extends Document {
         answersSubmitted: { type: Number, default: 0 },
         skippedQuestions: { type: [Number], default: [] },
         isCompleted: { type: Boolean, default: false },
+        completedAt: { type: Date },
       },
     ],
     default: [],
@@ -45,6 +49,7 @@ export class Session extends Document {
     answersSubmitted: number;
     skippedQuestions: number[];
     isCompleted: boolean;
+    completedAt?: Date;
   }[];
 
   @Prop()

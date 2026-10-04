@@ -434,6 +434,7 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
           }),
           skippedQuestions: [],
           isCompleted: true,
+          completedAt: new Date(),
         });
       } else {
         if (session.participantsInfo[participantIndex].isCompleted) {
@@ -443,6 +444,7 @@ Generate ${session.noOfQuestions} questions now. Ensure each follows the format 
           );
         }
         session.participantsInfo[participantIndex].isCompleted = true;
+        session.participantsInfo[participantIndex].completedAt ??= new Date();
       }
 
       const savedSession = await session.save();

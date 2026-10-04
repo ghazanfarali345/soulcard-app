@@ -48,6 +48,31 @@ export class GameSessionController {
     private readonly invitationService: InvitationService,
   ) {}
 
+  @Get('trajectory')
+  @UseGuards(JwtGuard)
+  @ApiSecurity('access-token')
+  @ApiOperation({
+    summary: 'Get Soul Trajectory dashboard data',
+    description:
+      'Get score history, trend, completed sessions, streak, and relevant exploration areas for the authenticated user.',
+  })
+  async getTrajectory(
+    @Req() req: any,
+    @Query('range') range = '30d',
+    @Query('timezone') timezone = 'UTC',
+  ) {
+    const data = await this.userAnswerService.getTrajectory(
+      req.user.userId,
+      range,
+      timezone,
+    );
+    return {
+      success: true,
+      message: 'Soul Trajectory data retrieved successfully',
+      data,
+    };
+  }
+
   @Post('sessionDetails')
   @UseGuards(JwtGuard)
   @ApiSecurity('access-token')
