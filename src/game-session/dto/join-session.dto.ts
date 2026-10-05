@@ -1,18 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Length } from 'class-validator';
+import { IsNotEmpty, IsString, Matches } from 'class-validator';
 
 export class JoinSessionDto {
   @ApiProperty({
-    description: '6-digit numeric OTP join code',
+    description: '6-digit OTP join code or permanent session share code',
     example: '123456',
     minLength: 6,
     maxLength: 6,
   })
   @IsNotEmpty()
   @IsString()
-  @Length(6, 6, { message: 'Join code must be exactly 6 characters' })
-  // Ensure it's numeric digits only
-  // (validation on server will also check existence/expiry)
+  @Matches(/^\d{6}$/, {
+    message: 'Code must be exactly 6 digits',
+  })
   code: string;
 
   @ApiProperty({

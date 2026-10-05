@@ -103,6 +103,8 @@ export class GameSessionController {
           engagement: 'guided',
           noOfQuestions: 5,
           timerSeconds: 60,
+          shareCode: '123456',
+          shareUrl: 'https://join.soulcard.org/s/123456',
           createdAt: '2026-04-19T10:30:00.000Z',
           updatedAt: '2026-04-19T10:30:00.000Z',
         },
@@ -123,10 +125,16 @@ export class GameSessionController {
       userId,
       dto,
     );
+    const shareBaseUrl = (
+      process.env.SHARE_BASE_URL || 'https://join.soulcard.org'
+    ).replace(/\/+$/, '');
     return {
       success: true,
       message: 'Session details collected successfully',
-      data,
+      data: {
+        ...data.toObject(),
+        shareUrl: `${shareBaseUrl}/s/${data.shareCode}`,
+      },
     };
   }
 

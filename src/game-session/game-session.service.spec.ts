@@ -22,6 +22,9 @@ describe('GameSessionService', () => {
         ...data,
         save,
       }));
+    Object.assign(sessionModel, {
+      exists: jest.fn<() => Promise<any>>().mockResolvedValue(null),
+    });
     const service = new GameSessionService(
       sessionModel as any,
       {} as any,
@@ -38,9 +41,53 @@ describe('GameSessionService', () => {
     await service.createSessionDetails('507f1f77bcf86cd799439011', sessionData);
 
     expect(sessionModel).toHaveBeenCalledWith(
-      expect.objectContaining({ timerSeconds: 60 }),
+      expect.objectContaining({
+        timerSeconds: 60,
+        shareCode: expect.stringMatching(/^\d{6}$/),
+      }),
     );
     expect(save).toHaveBeenCalled();
+  });
+
+  it('validates permanent share codes as well as unexpired OTP codes', async () => {
+    const session = { status: 'INITIALIZED' };
+    const findOne = jest
+      .fn<() => Promise<any>>()
+      .mockResolvedValueOnce(session);
+    const service = new GameSessionService(
+      { findOne } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const shareCode = '123456';
+
+    await expect(service.validateJoinCode(shareCode)).resolves.toBe(session);
+    expect(findOne).toHaveBeenCalledWith({ shareCode });
+  });
+
+  it('falls back to a non-expired OTP when no share code matches', async () => {
+    const session = { status: 'INITIALIZED' };
+    const findOne = jest
+      .fn<() => Promise<any>>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(session);
+    const service = new GameSessionService(
+      { findOne } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(service.validateJoinCode('654321')).resolves.toBe(session);
+    expect(findOne).toHaveBeenLastCalledWith({
+      joinCode: '654321',
+      joinCodeExpiresAt: { $gt: expect.any(Date) },
+    });
   });
 
   it('returns timerSeconds in session details', async () => {

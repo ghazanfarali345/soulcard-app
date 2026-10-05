@@ -58,6 +58,9 @@ export class Session extends Document {
   @Prop()
   joinCodeExpiresAt?: Date;
 
+  @Prop({ type: String, unique: true, sparse: true })
+  shareCode?: string;
+
   @Prop({ required: true })
   soulSpace: string;
 

@@ -3,7 +3,7 @@ import { InvitationService } from './invitation.service';
 import { SessionStatus } from '../entities/session.entity';
 
 describe('InvitationService.acceptInvitation', () => {
-  it('rejects joining a completed session', async () => {
+  it('rejects joining a completed session with a share code', async () => {
     const service = new InvitationService(
       {} as any,
       {} as any,

@@ -65,6 +65,21 @@ export class GameSessionService {
   ): Promise<Session> {
     const userObjectId = new Types.ObjectId(userId);
     const user = await this.usersService.findById(userId);
+    let shareCode: string;
+    do {
+      const bytes = crypto.randomBytes(6);
+      shareCode = '';
+      for (let i = 0; i < bytes.length; i++) {
+        shareCode += (bytes[i] % 10).toString();
+      }
+    } while (
+      await this.sessionModel.exists({
+        $or: [
+          { shareCode },
+          { joinCode: shareCode, joinCodeExpiresAt: { $gt: new Date() } },
+        ],
+      })
+    );
 
     const newSession = new this.sessionModel({
       userId: userObjectId,
@@ -80,6 +95,7 @@ export class GameSessionService {
           isCompleted: false,
         },
       ],
+      shareCode,
       ...dto,
     });
     return await newSession.save();
@@ -97,13 +113,18 @@ export class GameSessionService {
       );
     }
 
-    const codeLength = 6;
-
     let code = '';
-    const bytes = crypto.randomBytes(codeLength);
-    for (let i = 0; i < codeLength; i++) {
-      code += (bytes[i] % 10).toString();
-    }
+    let isShareCode = false;
+    do {
+      const bytes = crypto.randomBytes(6);
+      code = '';
+      for (let i = 0; i < bytes.length; i++) {
+        code += (bytes[i] % 10).toString();
+      }
+      isShareCode = Boolean(
+        await this.sessionModel.exists({ shareCode: code }),
+      );
+    } while (isShareCode);
 
     const ttl = parseInt(process.env.JOIN_CODE_TTL_MINUTES || '15', 10);
     session.joinCode = code;
@@ -114,10 +135,12 @@ export class GameSessionService {
   }
 
   async validateJoinCode(code: string): Promise<Session> {
-    const session = await this.sessionModel.findOne({
-      joinCode: code,
-      joinCodeExpiresAt: { $gt: new Date() },
-    });
+    const session =
+      (await this.sessionModel.findOne({ shareCode: code })) ||
+      (await this.sessionModel.findOne({
+        joinCode: code,
+        joinCodeExpiresAt: { $gt: new Date() },
+      }));
 
     if (!session) {
       throw new HttpException(
