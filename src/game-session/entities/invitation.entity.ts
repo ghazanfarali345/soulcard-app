@@ -7,10 +7,10 @@ export class Invitation extends Document {
   sessionId: Types.ObjectId;
 
   @Prop({ required: true })
-  code: string; // 12-char OTP code
+  code: string;
 
-  @Prop({ required: true })
-  expiresAt: Date;
+  @Prop()
+  expiresAt?: Date;
 
   @Prop({
     type: String,

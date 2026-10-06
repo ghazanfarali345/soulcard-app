@@ -149,7 +149,8 @@ export class GameSessionController {
   })
   @ApiOperation({
     summary: 'Invite Players to Session',
-    description: 'Send an OTP join code to players via email or SMS.',
+    description:
+      'Send the session share code and link to players via email or SMS.',
   })
   @ApiBody({ type: CreateInvitationDto })
   async invitePlayer(
@@ -168,7 +169,10 @@ export class GameSessionController {
       success: true,
       message: 'Invitation sent successfully',
       data: {
-        expiresAt: invitation.expiresAt,
+        code: invitation.code,
+        shareUrl: `${(
+          process.env.SHARE_BASE_URL || 'https://join.soulcard.org'
+        ).replace(/\/+$/, '')}/s/${invitation.code}`,
       },
     };
   }
@@ -177,9 +181,9 @@ export class GameSessionController {
   @UseGuards(JwtGuard)
   @ApiSecurity('access-token')
   @ApiOperation({
-    summary: 'Join Session with OTP',
+    summary: 'Join Session with Invite Code',
     description:
-      'Join an existing multiplayer session using a 6-digit numeric OTP join code.',
+      'Join an existing multiplayer session using its 6-digit session code.',
   })
   @ApiBody({ type: JoinSessionDto })
   async joinSession(@Req() req: any, @Body() dto: JoinSessionDto) {

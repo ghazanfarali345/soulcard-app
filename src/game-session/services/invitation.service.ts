@@ -40,15 +40,22 @@ export class InvitationService {
       );
     }
 
-    // Generate or get existing valid join code
-    const code = await this.gameSessionService.generateJoinCode(sessionId);
-    const ttl = parseInt(process.env.JOIN_CODE_TTL_MINUTES || '15', 10);
-    const expiresAt = new Date(Date.now() + ttl * 60 * 1000);
+    if (!session.shareCode) {
+      throw new HttpException(
+        'Session share code is not available',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const code = session.shareCode;
+    const shareBaseUrl = (
+      process.env.SHARE_BASE_URL || 'https://join.soulcard.org'
+    ).replace(/\/+$/, '');
+    const shareUrl = `${shareBaseUrl}/s/${code}`;
 
     const invitation = new this.invitationModel({
       sessionId: new Types.ObjectId(sessionId),
       code,
-      expiresAt,
       email,
       phone,
       status: 'PENDING',
@@ -57,7 +64,7 @@ export class InvitationService {
     await invitation.save();
 
     // Send invitation
-    const messageBody = `You are invited to join a Soul Card session. Use code ${code} in the app to join. (Expires in ${ttl} minutes)`;
+    const messageBody = `You are invited to join a Soul Card session. Use code ${code} in the app or open ${shareUrl}. The code works until the session ends.`;
 
     if (phone) {
       await this.twilioService.sendSms(phone, messageBody);
@@ -65,7 +72,7 @@ export class InvitationService {
 
     if (email) {
       const subject = 'Soul Card Session Invitation';
-      const html = `<p>You are invited to join a Soul Card session.</p><p>Use code <strong>${code}</strong> in the app to join.</p><p>This code expires in ${ttl} minutes.</p>`;
+      const html = `<p>You are invited to join a Soul Card session.</p><p>Use code <strong>${code}</strong> in the app or <a href="${shareUrl}">open the session link</a>.</p><p>The code works until the session ends.</p>`;
       await this.emailService.sendEmail(email, subject, html);
     }
 
