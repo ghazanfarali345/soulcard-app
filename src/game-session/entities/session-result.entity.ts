@@ -9,6 +9,7 @@ export interface AnswerBreakdown {
   score: {
     similarityScore: number;
     metrics: Record<string, number>;
+    isSubstantive: boolean;
     guidedInsight: string;
     constructiveFeedback: string;
   };
@@ -81,6 +82,7 @@ export class SessionResult extends Document {
         score: {
           similarityScore: Number,
           metrics: { type: Object }, // Dynamic metrics
+          isSubstantive: { type: Boolean, default: true },
           guidedInsight: String,
           constructiveFeedback: String,
         },

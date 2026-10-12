@@ -5,6 +5,7 @@ export interface PerQuestionScore {
   constructiveFeedback: string;
   similarityScore: number; // 0-100
   metrics: Record<string, number>; // Dynamic metrics based on engagement mode
+  isSubstantive: boolean;
   guidedInsight: string; // A possible first-person response to the question
 }
 
@@ -35,6 +36,7 @@ export class UserAnswer extends Document {
     type: {
       similarityScore: Number,
       metrics: { type: Object }, // Dynamic metrics
+      isSubstantive: { type: Boolean, default: true },
       guidedInsight: String,
       constructiveFeedback: String,
     },

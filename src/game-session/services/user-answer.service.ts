@@ -240,6 +240,7 @@ export class UserAnswerService {
         score: {
           similarityScore: scoringResult.similarityScore,
           metrics: scoringResult.metrics,
+          isSubstantive: scoringResult.isSubstantive,
           guidedInsight: scoringResult.guidedInsight,
           constructiveFeedback: scoringResult.constructiveFeedback,
         },
@@ -339,6 +340,7 @@ export class UserAnswerService {
         score: {
           similarityScore: scoringResult.similarityScore,
           metrics: scoringResult.metrics,
+          isSubstantive: scoringResult.isSubstantive,
           guidedInsight: scoringResult.guidedInsight,
           constructiveFeedback: scoringResult.constructiveFeedback,
         },
@@ -658,10 +660,39 @@ export class UserAnswerService {
         );
       }
 
-      // Extract scoring results
-      const scores: ScoringResult[] = answers.map((answer) => ({
+      const answersBreakdown = answers.map((answer) => ({
+        questionNumber: answer.questionNumber,
+        question: answer.question,
+        userAnswer: answer.userAnswer,
+        modelAnswer: answer.modelAnswer,
+        score: {
+          similarityScore: answer.score.similarityScore,
+          metrics: answer.score.metrics,
+          isSubstantive: answer.score.isSubstantive !== false,
+          guidedInsight: answer.score.guidedInsight,
+          constructiveFeedback: answer.score.constructiveFeedback,
+        },
+      }));
+
+      // Keep insufficient answers in the session history, but never score them.
+      const substantiveAnswers = answers.filter(
+        (answer) => answer.score.isSubstantive !== false,
+      );
+      if (substantiveAnswers.length === 0) {
+        return {
+          sessionId,
+          userId,
+          finalResults: null,
+          reflectiveInsights: null,
+          answersBreakdown,
+        };
+      }
+
+      // Extract scoring results from substantive answers only.
+      const scores: ScoringResult[] = substantiveAnswers.map((answer) => ({
         similarityScore: answer.score.similarityScore,
         metrics: answer.score.metrics,
+        isSubstantive: answer.score.isSubstantive !== false,
         guidedInsight: answer.score.guidedInsight,
         constructiveFeedback: answer.score.constructiveFeedback ?? '',
       }));
@@ -683,19 +714,6 @@ export class UserAnswerService {
         );
 
       // Create and save SessionResult for history (per player)
-      const answersBreakdown = answers.map((answer) => ({
-        questionNumber: answer.questionNumber,
-        question: answer.question,
-        userAnswer: answer.userAnswer,
-        modelAnswer: answer.modelAnswer,
-        score: {
-          similarityScore: answer.score.similarityScore,
-          metrics: answer.score.metrics,
-          guidedInsight: answer.score.guidedInsight,
-          constructiveFeedback: answer.score.constructiveFeedback,
-        },
-      }));
-
       const existingResult = await this.sessionResultModel.findOne({
         sessionId: new Types.ObjectId(sessionId),
         userId: new Types.ObjectId(userId),
@@ -952,6 +970,21 @@ export class UserAnswerService {
 
       // If no results found yet but everyone is supposedly done, it might be a calculation delay
       if (allResults.length === 0) {
+        const scoredAnswerCount = await this.userAnswerModel.countDocuments({
+          sessionId: new Types.ObjectId(sessionId),
+          'score.isSubstantive': { $ne: false },
+        });
+        if (scoredAnswerCount === 0) {
+          return {
+            sessionId,
+            status: 'COMPLETED',
+            message:
+              'The session is complete, but there were no substantive answers to score.',
+            totalParticipants,
+            results: [],
+          };
+        }
+
         return {
           sessionId,
           status: 'CALCULATING',
@@ -1059,7 +1092,6 @@ export class UserAnswerService {
         completedAt,
         sessionDate: completedAt,
       });
-      completedDays.add(getDateKey(completedAt, timezone));
     }
 
     const sessionIds = [...participantBySession.keys()].map(
@@ -1107,6 +1139,7 @@ export class UserAnswerService {
       >();
 
       for (const answer of answers) {
+        if (answer.score?.isSubstantive === false) continue;
         const sessionId = answer.sessionId.toString();
         if (pointsBySession.has(sessionId)) continue;
         const similarityScore = answer.score?.similarityScore;
@@ -1155,6 +1188,9 @@ export class UserAnswerService {
         (point) => !Number.isNaN(point.date.getTime()) && point.date <= now,
       )
       .sort((left, right) => left.date.getTime() - right.date.getTime());
+    for (const point of resultPoints) {
+      completedDays.add(getDateKey(point.date, timezone));
+    }
 
     const periodResults = resultPoints.filter(
       (point) =>
@@ -1235,13 +1271,7 @@ export class UserAnswerService {
       streakDateKey = shiftDateKey(streakDateKey, -1);
     }
 
-    const selectedSessionCount = [...participantBySession.values()].filter(
-      ({ completedAt }) =>
-        range === 'all' ||
-        (!!completedAt &&
-          getDateKey(completedAt, timezone) >= periodStartKey &&
-          getDateKey(completedAt, timezone) <= todayKey),
-    ).length;
+    const selectedSessionCount = periodResults.length;
 
     return {
       range,

@@ -43,6 +43,12 @@ export class SkipResponseDto {
 
 export class PerQuestionScoreDto {
   @ApiProperty({
+    example: true,
+    description: 'Whether the answer contains meaningful, relevant content',
+  })
+  isSubstantive: boolean;
+
+  @ApiProperty({
     example: 78,
     description: 'Similarity score with model answer (0-100)',
   })

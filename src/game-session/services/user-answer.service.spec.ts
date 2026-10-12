@@ -132,11 +132,19 @@ describe('UserAnswerService trajectory', () => {
     const answers = [
       {
         sessionId,
-        score: { similarityScore: 70, metrics: { reflective: 12 } },
+        score: {
+          similarityScore: 70,
+          metrics: { reflective: 12 },
+          isSubstantive: false,
+        },
       },
       {
         sessionId,
-        score: { similarityScore: 81, metrics: { reflective: 18 } },
+        score: {
+          similarityScore: 81,
+          metrics: { reflective: 18 },
+          isSubstantive: true,
+        },
       },
     ];
     const service = new UserAnswerService(
@@ -171,12 +179,12 @@ describe('UserAnswerService trajectory', () => {
 
     const data = await service.getTrajectory(userId.toString(), '30d');
 
-    expect(data.currentScore).toBe(76);
-    expect(data.averageScore).toBe(76);
+    expect(data.currentScore).toBe(81);
+    expect(data.averageScore).toBe(81);
     expect(data.totalSessionsCompleted).toBe(1);
     expect(data.whatYouAreExploring).toContainEqual({
       area: 'Self-Awareness',
-      averageScore: 15,
+      averageScore: 18,
     });
   });
 });
