@@ -15,12 +15,51 @@ export interface ScoringResult {
 }
 
 export interface ReflectiveInsights {
-  reflectiveStrengths: string;
-  deepeningAwareness: string;
+  [section: string]: string | string[];
   whatThisMeans: string;
   nextBestAction: string;
   personalizedRecommendations: string[];
 }
+
+const INSIGHT_SECTIONS: Record<
+  EngagementMode,
+  {
+    strengthsKey: string;
+    strengthsLabel: string;
+    growthKey: string;
+    growthLabel: string;
+    growthFocus: string;
+  }
+> = {
+  [EngagementMode.REFLECTIVE]: {
+    strengthsKey: 'reflectiveStrengths',
+    strengthsLabel: 'REFLECTIVE STRENGTHS',
+    growthKey: 'deepeningAwareness',
+    growthLabel: 'DEEPENING AWARENESS',
+    growthFocus: 'self-awareness',
+  },
+  [EngagementMode.ANCHORED_INSIGHT]: {
+    strengthsKey: 'insightStrengths',
+    strengthsLabel: 'INSIGHT STRENGTHS',
+    growthKey: 'opportunitiesForGrowth',
+    growthLabel: 'OPPORTUNITIES FOR GROWTH',
+    growthFocus: 'insight',
+  },
+  [EngagementMode.LEARNING]: {
+    strengthsKey: 'learningStrengths',
+    strengthsLabel: 'LEARNING STRENGTHS',
+    growthKey: 'areasToDevelop',
+    growthLabel: 'AREAS TO DEVELOP',
+    growthFocus: 'mastery',
+  },
+  [EngagementMode.SOCIAL_FLOW]: {
+    strengthsKey: 'socialStrengths',
+    strengthsLabel: 'SOCIAL STRENGTHS',
+    growthKey: 'buildingConnection',
+    growthLabel: 'BUILDING CONNECTION',
+    growthFocus: 'connection',
+  },
+};
 
 @Injectable()
 export class ScoringService {
@@ -341,6 +380,7 @@ Remember: Be fair but honest. Similarity can be high even if slightly different 
   ): Promise<ReflectiveInsights> {
     try {
       const config = ENGAGEMENT_MODE_CONFIG[context.engagementMode];
+      const sections = INSIGHT_SECTIONS[context.engagementMode];
       const metricsList = Object.entries(metrics)
         .map(
           ([key, value]) =>
@@ -362,11 +402,11 @@ ${metricsList}
 
 Please generate exactly 5 fields. Use a tone that is encouraging, authentic, and growth-oriented, reflecting your role as a ${config.guidanceLayer}.
 
-1. REFLECTIVE STRENGTHS:
+1. ${sections.strengthsLabel}:
    Write 2-3 sentences about what the user did well in this ${context.engagementMode} journey. Acknowledge their participation as a major first step. Reference specific strong metrics (score > 15/20).
 
-2. DEEPENING AWARENESS:
-   Identify one area for growth (the lowest score). Provide 2-3 sentences about how they can improve. Include 2-3 specific strategies (bullet points starting with →). Use the exact phrases like "To enhance your ${context.engagementMode === EngagementMode.LEARNING ? 'mastery' : 'self-awareness'}, consider focusing on [Area Name]".
+2. ${sections.growthLabel}:
+   Identify one area for growth (the lowest score). Provide 2-3 sentences about how they can improve. Include 2-3 specific strategies (bullet points starting with →). Use the exact phrase "To enhance your ${sections.growthFocus}, consider focusing on [Area Name]".
 
 3. WHAT THIS MEANS:
    Provide a 1-2 sentence interpretation of their overall performance. Assign a "Growth Level" (e.g., Opening Awareness, Emerging Awareness, Deepening Awareness).
@@ -378,8 +418,8 @@ Please generate exactly 5 fields. Use a tone that is encouraging, authentic, and
    Provide 3-5 specific, actionable bullet-point recommendations (starting with •) relevant to the ${context.engagementMode} mode.
 
 FORMAT YOUR RESPONSE EXACTLY AS:
-REFLECTIVE STRENGTHS: [Text]
-DEEPENING AWARENESS: [Text with bullet points]
+${sections.strengthsLabel}: [Text]
+${sections.growthLabel}: [Text with bullet points]
 WHAT THIS MEANS: [Text]
 NEXT BEST ACTION: [Text]
 PERSONALIZED RECOMMENDATIONS:
@@ -389,13 +429,14 @@ PERSONALIZED RECOMMENDATIONS:
 `;
 
       const response = await this.geminiService.generateContent(prompt);
-      return this.parseReflectiveInsights(response);
+      return this.parseReflectiveInsights(response, context.engagementMode);
     } catch (error) {
       console.error('Error generating reflective insights:', error);
+      const sections = INSIGHT_SECTIONS[context.engagementMode];
       return {
-        reflectiveStrengths:
+        [sections.strengthsKey]:
           'You showed up and participated, which is the most important step!',
-        deepeningAwareness:
+        [sections.growthKey]:
           'Every journey of self-discovery has areas to explore further.',
         whatThisMeans: 'You are on a journey of growth.',
         nextBestAction: 'Continue holding space for what arises.',
@@ -408,10 +449,14 @@ PERSONALIZED RECOMMENDATIONS:
     }
   }
 
-  private parseReflectiveInsights(response: string): ReflectiveInsights {
+  private parseReflectiveInsights(
+    response: string,
+    engagementMode: EngagementMode,
+  ): ReflectiveInsights {
+    const sections = INSIGHT_SECTIONS[engagementMode];
     const lines = response.split('\n').map((l) => l.trim());
-    let reflectiveStrengths = '';
-    let deepeningAwareness = '';
+    let strengths = '';
+    let growth = '';
     let whatThisMeans = '';
     let nextBestAction = '';
     const personalizedRecommendations: string[] = [];
@@ -421,12 +466,12 @@ PERSONALIZED RECOMMENDATIONS:
     for (const line of lines) {
       if (!line) continue;
 
-      if (line.startsWith('REFLECTIVE STRENGTHS:')) {
+      if (line.startsWith(`${sections.strengthsLabel}:`)) {
         currentSection = 'strengths';
-        reflectiveStrengths = line.replace('REFLECTIVE STRENGTHS:', '').trim();
-      } else if (line.startsWith('DEEPENING AWARENESS:')) {
+        strengths = line.replace(`${sections.strengthsLabel}:`, '').trim();
+      } else if (line.startsWith(`${sections.growthLabel}:`)) {
         currentSection = 'awareness';
-        deepeningAwareness = line.replace('DEEPENING AWARENESS:', '').trim();
+        growth = line.replace(`${sections.growthLabel}:`, '').trim();
       } else if (line.startsWith('WHAT THIS MEANS:')) {
         currentSection = 'meaning';
         whatThisMeans = line.replace('WHAT THIS MEANS:', '').trim();
@@ -437,9 +482,9 @@ PERSONALIZED RECOMMENDATIONS:
         currentSection = 'recommendations';
       } else {
         if (currentSection === 'strengths') {
-          reflectiveStrengths += ' ' + line;
+          strengths += ' ' + line;
         } else if (currentSection === 'awareness') {
-          deepeningAwareness += '\n' + line;
+          growth += '\n' + line;
         } else if (currentSection === 'meaning') {
           whatThisMeans += ' ' + line;
         } else if (currentSection === 'action') {
@@ -454,8 +499,8 @@ PERSONALIZED RECOMMENDATIONS:
     }
 
     return {
-      reflectiveStrengths: reflectiveStrengths.trim(),
-      deepeningAwareness: deepeningAwareness.trim(),
+      [sections.strengthsKey]: strengths.trim(),
+      [sections.growthKey]: growth.trim(),
       whatThisMeans: whatThisMeans.trim(),
       nextBestAction: nextBestAction.trim(),
       personalizedRecommendations:

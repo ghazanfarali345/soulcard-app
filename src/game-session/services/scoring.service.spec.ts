@@ -182,4 +182,83 @@ describe('ScoringService', () => {
       metrics: { reflective: 0, coherence: 13 },
     });
   });
+
+  it.each([
+    {
+      mode: EngagementMode.REFLECTIVE,
+      strengthsLabel: 'REFLECTIVE STRENGTHS',
+      strengthsKey: 'reflectiveStrengths',
+      growthLabel: 'DEEPENING AWARENESS',
+      growthKey: 'deepeningAwareness',
+    },
+    {
+      mode: EngagementMode.ANCHORED_INSIGHT,
+      strengthsLabel: 'INSIGHT STRENGTHS',
+      strengthsKey: 'insightStrengths',
+      growthLabel: 'OPPORTUNITIES FOR GROWTH',
+      growthKey: 'opportunitiesForGrowth',
+    },
+    {
+      mode: EngagementMode.LEARNING,
+      strengthsLabel: 'LEARNING STRENGTHS',
+      strengthsKey: 'learningStrengths',
+      growthLabel: 'AREAS TO DEVELOP',
+      growthKey: 'areasToDevelop',
+    },
+    {
+      mode: EngagementMode.SOCIAL_FLOW,
+      strengthsLabel: 'SOCIAL STRENGTHS',
+      strengthsKey: 'socialStrengths',
+      growthLabel: 'BUILDING CONNECTION',
+      growthKey: 'buildingConnection',
+    },
+  ])(
+    'generates $strengthsLabel and $growthLabel for $mode mode',
+    async ({
+      mode,
+      strengthsLabel,
+      strengthsKey,
+      growthLabel,
+      growthKey,
+    }) => {
+      let generatedPrompt = '';
+      const geminiService = {
+        generateContent: jest
+          .fn<(prompt: string) => Promise<string>>()
+          .mockImplementation(async (prompt) => {
+            generatedPrompt = prompt;
+            return [
+              `${strengthsLabel}: A relevant strength.`,
+              `${growthLabel}: A useful next step.`,
+              'WHAT THIS MEANS: Progress is underway.',
+              'NEXT BEST ACTION: Keep practicing.',
+              'PERSONALIZED RECOMMENDATIONS:',
+              '• Try one practical exercise.',
+            ].join('\n');
+          }),
+      };
+      const service = new ScoringService(geminiService as any);
+
+      const result = await service.generateReflectiveInsights(75, {}, {
+        soulSpace: 'Personal growth',
+        vibe: 'Calm',
+        engagementMode: mode,
+      });
+
+      expect(generatedPrompt).toContain(`${strengthsLabel}: [Text]`);
+      expect(generatedPrompt).toContain(`${growthLabel}: [Text with bullet points]`);
+      expect(result).toMatchObject({
+        [strengthsKey]: 'A relevant strength.',
+        [growthKey]: 'A useful next step.',
+        whatThisMeans: 'Progress is underway.',
+        nextBestAction: 'Keep practicing.',
+        personalizedRecommendations: ['Try one practical exercise.'],
+      });
+      expect(result).not.toHaveProperty(
+        mode === EngagementMode.REFLECTIVE
+          ? 'insightStrengths'
+          : 'reflectiveStrengths',
+      );
+    },
+  );
 });

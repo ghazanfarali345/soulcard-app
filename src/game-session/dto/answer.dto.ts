@@ -149,40 +149,6 @@ export class AnswerBreakdownDto {
   score: PerQuestionScoreDto;
 }
 
-export class ReflectiveInsightsDto {
-  @ApiProperty({
-    example:
-      'You showed up and participated, which is the most important step!',
-    description: 'Reflective Strengths - What the user did well',
-  })
-  reflectiveStrengths: string;
-
-  @ApiProperty({
-    example:
-      'To enhance your self-awareness, consider focusing on Reflective Depth...',
-    description: 'Deepening Awareness - Areas for growth with strategies',
-  })
-  deepeningAwareness: string;
-
-  @ApiProperty({
-    example: 'Your responses demonstrate authentic self-awareness...',
-    description: 'What This Means - Interpretation of overall performance',
-  })
-  whatThisMeans: string;
-
-  @ApiProperty({
-    example: 'Continue holding space for what arises...',
-    description: 'Next Best Action - Single actionable recommendation',
-  })
-  nextBestAction: string;
-
-  @ApiProperty({
-    example: ['Daily reflection', 'Read reflective essays'],
-    description: 'Personalized Recommendations - Tailored bullet points',
-  })
-  personalizedRecommendations: string[];
-}
-
 export class FinalResultsDto {
   @ApiProperty({
     example: '507f1f77bcf86cd799439011',
@@ -197,10 +163,18 @@ export class FinalResultsDto {
   finalResults: FinalMetricsDto;
 
   @ApiProperty({
-    type: ReflectiveInsightsDto,
-    description: 'AI-generated narrative feedback',
+    type: Object,
+    description:
+      'AI-generated narrative feedback. The strengths and growth keys depend on engagementMode: reflectiveStrengths/deepeningAwareness, insightStrengths/opportunitiesForGrowth, learningStrengths/areasToDevelop, or socialStrengths/buildingConnection.',
+    example: {
+      reflectiveStrengths: 'You showed up and participated.',
+      deepeningAwareness: 'To enhance your self-awareness, consider grounding.',
+      whatThisMeans: 'You are on a journey of growth.',
+      nextBestAction: 'Continue holding space for what arises.',
+      personalizedRecommendations: ['Practice regular reflection'],
+    },
   })
-  reflectiveInsights: ReflectiveInsightsDto;
+  reflectiveInsights: Record<string, string | string[]>;
 
   @ApiProperty({
     type: [AnswerBreakdownDto],
@@ -254,9 +228,9 @@ export class ProgressDto {
   results: FinalMetricsDto | null;
 
   @ApiProperty({
-    type: ReflectiveInsightsDto,
+    type: Object,
     nullable: true,
-    description: 'AI-generated narrative feedback if complete',
+    description: 'Mode-specific AI-generated narrative feedback if complete',
   })
-  reflectiveInsights: ReflectiveInsightsDto | null;
+  reflectiveInsights: Record<string, string | string[]> | null;
 }

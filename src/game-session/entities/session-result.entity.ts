@@ -20,14 +20,6 @@ export interface FinalResultsData {
   metrics: Record<string, number>; // Dynamic metrics based on engagement mode
 }
 
-export interface ReflectiveInsightsData {
-  reflectiveStrengths: string;
-  deepeningAwareness: string;
-  whatThisMeans: string;
-  nextBestAction: string;
-  personalizedRecommendations: string[];
-}
-
 @Schema({ timestamps: true })
 export class SessionResult extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Session', required: true })
@@ -60,17 +52,8 @@ export class SessionResult extends Document {
   })
   finalResults: FinalResultsData;
 
-  @Prop({
-    type: {
-      reflectiveStrengths: String,
-      deepeningAwareness: String,
-      whatThisMeans: String,
-      nextBestAction: String,
-      personalizedRecommendations: [String],
-    },
-    default: null,
-  })
-  reflectiveInsights: ReflectiveInsightsData;
+  @Prop({ type: Object, default: null })
+  reflectiveInsights: Record<string, string | string[]>;
 
   @Prop({
     type: [
