@@ -90,6 +90,62 @@ describe('GameSessionService', () => {
     });
   });
 
+  it('generates large question sets in parallel batches and persists them together', async () => {
+    const session: any = {
+      _id: 'session-1',
+      noOfQuestions: 12,
+      engagementMode: 'Reflective',
+      participants: ['host-1'],
+      save: jest.fn(async function (this: any) {
+        return this;
+      }),
+    };
+    const insertMany = jest
+      .fn<(documents: any[]) => Promise<any[]>>()
+      .mockResolvedValue([]);
+    const generateContent = jest
+      .fn<(prompt: string) => Promise<string>>()
+      .mockResolvedValueOnce('first batch')
+      .mockResolvedValueOnce('second batch');
+    const service = new GameSessionService(
+      { findById: jest.fn(async () => session) } as any,
+      { insertMany } as any,
+      { generateContent } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const parsedQuestions = (content: string) =>
+      Array.from(
+        { length: content === 'first batch' ? 10 : 2 },
+        (_, index) => ({
+          question: `Question ${index + 1}`,
+          modelAnswer: 'A thoughtful answer.',
+          scoring: { reflective: 8 },
+          aiFeedback: 'Thoughtful response.',
+          spiritSuggestions: [],
+        }),
+      );
+    jest
+      .spyOn(service as any, 'parseQuestionsWithScoring')
+      .mockImplementation(parsedQuestions);
+
+    await service.generateQuestionsFromSession('session-1');
+
+    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(generateContent.mock.calls[0][0]).toContain(
+      'numbered 1 through 10',
+    );
+    expect(generateContent.mock.calls[1][0]).toContain(
+      'numbered 11 through 12',
+    );
+    expect(insertMany).toHaveBeenCalledTimes(1);
+    expect(insertMany.mock.calls[0][0]).toHaveLength(12);
+    expect(insertMany.mock.calls[0][0][11].questionNumber).toBe(12);
+    expect(session.questions).toHaveLength(12);
+    expect(session.save).toHaveBeenCalled();
+  });
+
   it('returns timerSeconds in session details', async () => {
     const session = {
       participantsInfo: [],

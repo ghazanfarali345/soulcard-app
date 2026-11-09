@@ -47,6 +47,9 @@ const DIFFICULTY_DEFINITIONS = {
   },
 };
 
+const QUESTION_GENERATION_BATCH_SIZE = 10;
+const QUESTION_GENERATION_MAX_CONCURRENCY = 5;
+
 @Injectable()
 export class GameSessionService {
   constructor(
@@ -159,17 +162,58 @@ export class GameSessionService {
         throw new HttpException('Session not found', HttpStatus.NOT_FOUND);
       }
 
-      const prompt = this.buildPrompt(session);
-      const generatedContent = await this.geminiService.generateContent(prompt);
-
-      console.log('Gemini API Response Length:', generatedContent.length);
-
-      const fullQuestions = this.parseQuestionsWithScoring(
-        generatedContent,
-        getEngagementMode(session.engagementMode),
+      const mode = getEngagementMode(session.engagementMode);
+      const batches = Array.from(
+        {
+          length: Math.ceil(
+            session.noOfQuestions / QUESTION_GENERATION_BATCH_SIZE,
+          ),
+        },
+        (_, index) => {
+          const firstQuestionNumber =
+            index * QUESTION_GENERATION_BATCH_SIZE + 1;
+          const questionCount = Math.min(
+            QUESTION_GENERATION_BATCH_SIZE,
+            session.noOfQuestions - index * QUESTION_GENERATION_BATCH_SIZE,
+          );
+          return { firstQuestionNumber, questionCount };
+        },
       );
+      const generatedBatches: QuestionData[][] = [];
+      for (
+        let index = 0;
+        index < batches.length;
+        index += QUESTION_GENERATION_MAX_CONCURRENCY
+      ) {
+        const batchResults = await Promise.all(
+          batches
+            .slice(index, index + QUESTION_GENERATION_MAX_CONCURRENCY)
+            .map(async ({ firstQuestionNumber, questionCount }) => {
+              const prompt = this.buildPrompt(
+                session,
+                questionCount,
+                firstQuestionNumber,
+              );
+              const generatedContent =
+                await this.geminiService.generateContent(prompt);
+              const questions = this.parseQuestionsWithScoring(
+                generatedContent,
+                mode,
+              );
 
-      console.log('Parsed Questions Count:', fullQuestions.length);
+              if (questions.length !== questionCount) {
+                throw new HttpException(
+                  `AI generated ${questions.length} of ${questionCount} questions in batch starting at ${firstQuestionNumber}`,
+                  HttpStatus.BAD_GATEWAY,
+                );
+              }
+
+              return questions;
+            }),
+        );
+        generatedBatches.push(...batchResults);
+      }
+      const fullQuestions = generatedBatches.flat();
 
       if (fullQuestions.length === 0) {
         throw new HttpException(
@@ -178,17 +222,16 @@ export class GameSessionService {
         );
       }
 
-      for (let i = 0; i < fullQuestions.length; i++) {
-        const q = fullQuestions[i];
-        await this.questionAnswerKeyModel.create({
+      await this.questionAnswerKeyModel.insertMany(
+        fullQuestions.map((q, index) => ({
           sessionId: session._id,
-          questionNumber: i + 1,
+          questionNumber: index + 1,
           modelAnswer: q.modelAnswer,
           scoring: q.scoring,
           aiFeedback: q.aiFeedback,
           spiritSuggestions: q.spiritSuggestions || [],
-        });
-      }
+        })),
+      );
 
       const simpleQuestions = fullQuestions.map((q, index) => ({
         questionNumber: index + 1,
@@ -215,7 +258,11 @@ export class GameSessionService {
     }
   }
 
-  private buildPrompt(session: Session): string {
+  private buildPrompt(
+    session: Session,
+    questionCount = session.noOfQuestions,
+    firstQuestionNumber = 1,
+  ): string {
     const mode = getEngagementMode(session.engagementMode);
     const config = ENGAGEMENT_MODE_CONFIG[mode];
 
@@ -232,7 +279,7 @@ export class GameSessionService {
     const diffDef =
       DIFFICULTY_DEFINITIONS[difficulty] || DIFFICULTY_DEFINITIONS.SEEKER;
 
-    return `You are an expert educational content creator. Generate exactly ${session.noOfQuestions} profound, thought-provoking questions for the Soul Card Game.
+    return `You are an expert educational content creator. Generate exactly ${questionCount} profound, thought-provoking questions for the Soul Card Game, numbered ${firstQuestionNumber} through ${firstQuestionNumber + questionCount - 1}.
 
 SESSION PARAMETERS:
 - Soul Space: ${session.soulSpace}
@@ -283,7 +330,7 @@ QUALITY REQUIREMENTS:
    - Be encouraging and specific
    - Reference exact phrases when possible
 
-Generate ${session.noOfQuestions} questions now. Ensure each follows the format exactly.`;
+Generate exactly ${questionCount} questions now, numbered consecutively from ${firstQuestionNumber}. Ensure each follows the format exactly.`;
   }
 
   private parseQuestionsWithScoring(
