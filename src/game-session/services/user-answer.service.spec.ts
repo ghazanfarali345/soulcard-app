@@ -96,6 +96,132 @@ describe('UserAnswerService trajectory', () => {
     );
   });
 
+  it('supports a one-day range', async () => {
+    const userId = new Types.ObjectId();
+    const today = new Date();
+    today.setUTCHours(12, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const fixtures = [
+      { sessionId: new Types.ObjectId(), completedAt: today, score: 80 },
+      { sessionId: new Types.ObjectId(), completedAt: yesterday, score: 40 },
+    ];
+    const sessions = fixtures.map(({ sessionId, completedAt }) => ({
+      _id: sessionId,
+      noOfQuestions: 1,
+      participantsInfo: [
+        {
+          userId,
+          isCompleted: true,
+          answersSubmitted: 1,
+          skippedQuestions: [],
+          completedAt,
+        },
+      ],
+    }));
+    const results = fixtures.map(({ sessionId, completedAt, score }) => ({
+      sessionId,
+      completedAt,
+      finalResults: { overallScore: score, metrics: {} },
+    }));
+    const service = new UserAnswerService(
+      {
+        find: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({
+            lean: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+      } as any,
+      {
+        find: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(sessions),
+          }),
+        }),
+      } as any,
+      {} as any,
+      {
+        find: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(results),
+          }),
+        }),
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const data = await service.getTrajectory(userId.toString(), '1d');
+
+    expect(data.range).toBe('1d');
+    expect(data.totalSessionsCompleted).toBe(1);
+    expect(data.trajectory).toHaveLength(1);
+    expect(data.currentScore).toBe(80);
+  });
+
+  it('does not report zero as the lowest recorded score', async () => {
+    const userId = new Types.ObjectId();
+    const sessionIds = [new Types.ObjectId(), new Types.ObjectId()];
+    const completedAt = new Date();
+    const sessions = sessionIds.map((_id) => ({
+      _id,
+      noOfQuestions: 1,
+      participantsInfo: [
+        {
+          userId,
+          isCompleted: true,
+          answersSubmitted: 1,
+          skippedQuestions: [],
+          completedAt,
+        },
+      ],
+    }));
+    const results = sessionIds.map((sessionId, index) => ({
+      sessionId,
+      completedAt,
+      finalResults: { overallScore: index === 0 ? 0 : 35, metrics: {} },
+    }));
+    const service = new UserAnswerService(
+      {
+        find: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({
+            lean: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue([]),
+            }),
+          }),
+        }),
+      } as any,
+      {
+        find: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(sessions),
+          }),
+        }),
+      } as any,
+      {} as any,
+      {
+        find: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue(results),
+          }),
+        }),
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const data = await service.getTrajectory(userId.toString(), '30d');
+
+    expect(data.lowestRecordedScore).toEqual({
+      score: 35,
+      date: completedAt,
+    });
+  });
+
   it('rejects unsupported date ranges', async () => {
     const service = new UserAnswerService(
       {} as any,
@@ -109,7 +235,7 @@ describe('UserAnswerService trajectory', () => {
 
     await expect(
       service.getTrajectory('507f1f77bcf86cd799439011', '14d'),
-    ).rejects.toThrow('Range must be one of 7d, 30d, 90d, 1y, or all');
+    ).rejects.toThrow('Range must be one of 1d, 7d, 30d, 90d, 1y, or all');
   });
 
   it('derives a score from persisted answers when no session result exists', async () => {

@@ -11,6 +11,7 @@ import { getEngagementMode } from '../engagement-mode.config';
 import { NotificationsService } from '../../notifications/notifications.service';
 
 const TRAJECTORY_RANGES = {
+  '1d': 1,
   '7d': 7,
   '30d': 30,
   '90d': 90,
@@ -1038,7 +1039,7 @@ export class UserAnswerService {
   async getTrajectory(userId: string, range = '30d', timezone = 'UTC') {
     if (range !== 'all' && !Object.hasOwn(TRAJECTORY_RANGES, range)) {
       throw new HttpException(
-        'Range must be one of 7d, 30d, 90d, 1y, or all',
+        'Range must be one of 1d, 7d, 30d, 90d, 1y, or all',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -1231,10 +1232,12 @@ export class UserAnswerService {
       (best, point) => (!best || point.score > best.score ? point : best),
       null,
     );
-    const lowest = periodResults.reduce<(typeof resultPoints)[number] | null>(
-      (best, point) => (!best || point.score < best.score ? point : best),
-      null,
-    );
+    const lowest = periodResults
+      .filter((point) => point.score > 0)
+      .reduce<(typeof resultPoints)[number] | null>(
+        (best, point) => (!best || point.score < best.score ? point : best),
+        null,
+      );
 
     const explorationTotals = new Map<
       string,
